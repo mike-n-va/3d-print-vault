@@ -512,6 +512,222 @@ Pushed
 before proceeding.
 
 ---
+---
+
+# Repository Layout Standard
+
+## Purpose
+
+Maintain a consistent repository structure throughout the life of the project.
+
+The repository structure is considered part of the architecture.
+
+Changes require architecture review and approval.
+
+---
+
+## Approved Top-Level Structure
+
+```text
+3d-print-vault/
+
+    src/
+
+    tests/
+
+    docs/
+
+    assets/
+
+    scripts/
+
+    tools/
+
+    samples/
+```
+
+---
+
+## Governance Rule
+
+New top-level folders are prohibited unless approved through:
+
+```text
+REA
+        ↓
+Architecture Review
+        ↓
+Approval
+```
+
+---
+
+## Source Structure
+
+All production code shall exist within:
+
+```text
+src/
+```
+
+Example:
+
+```text
+src/
+
+    DPV.App
+
+    DPV.UI
+
+    DPV.Domain
+
+    DPV.Infrastructure
+```
+
+---
+
+## Test Structure
+
+All automated tests shall exist within:
+
+```text
+tests/
+```
+
+Example:
+
+```text
+tests/
+
+    DPV.Tests
+```
+
+---
+
+## Documentation Structure
+
+All architecture and governance artifacts shall exist within:
+
+```text
+docs/
+```
+
+Example:
+
+```text
+docs/
+
+    requirements/
+
+    architecture/
+
+    database/
+
+    ui/
+
+    ai/
+
+    research/
+```
+
+---
+
+# Feature Folder Standard
+
+## Purpose
+
+Provide a predictable structure for AI-generated and human-generated code.
+
+All Infrastructure modules shall follow a common pattern.
+
+---
+
+## Standard Module Layout
+
+```text
+FeatureName/
+
+    Contracts/
+
+    Models/
+
+    Services/
+```
+
+---
+
+## Example
+
+```text
+Duplicates/
+
+    Contracts/
+
+        IDuplicateDetectionService.cs
+
+    Models/
+
+        DuplicateGroup.cs
+
+        DuplicateCandidate.cs
+
+    Services/
+
+        DuplicateDetectionService.cs
+```
+
+---
+
+## Search Example
+
+```text
+Search/
+
+    Contracts/
+
+    Models/
+
+    Services/
+```
+
+---
+
+## Import Example
+
+```text
+Import/
+
+    Contracts/
+
+    Models/
+
+    Services/
+```
+
+---
+
+# Benefits
+
+Provides:
+
+```text
+Predictable Navigation
+
+Consistent AI Output
+
+Reduced Architectural Drift
+
+Simplified Refactoring
+
+Improved Maintainability
+```
+
+---
+
+## Compliance Requirement
+
+All new Infrastructure modules must follow this structure unless an architecture review explicitly approves an alternative arrangement.
+
 
 # Success Criteria
 
