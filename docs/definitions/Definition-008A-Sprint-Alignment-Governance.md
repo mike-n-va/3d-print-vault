@@ -72,6 +72,7 @@ proves; a link without a stated scope is insufficient.
 | Milestone review | Exact milestone record, description, state, dates, and complete issue membership | Reconcile milestone membership with the approved sprint scope and issue dispositions; identify omitted, extra, open, or unverified issues | Milestone URL/identifier and observed state; complete issue-number list and per-issue state/disposition; retrieval date | Project-owner approval for scope or status changes | Re-query GitHub after any authorized change; compare the result to the approved membership and decision |
 | Roadmap validation | Current roadmap, approved requirements/architecture, REA and definition artifacts, GitHub issue/milestone inventory | Check that roadmap claims, scope, sequence, and status agree with governing artifacts and evidence; flag stale or historical statements | Roadmap revision/commit; discrepancy list; links to authoritative records and evidence | Project-owner approval for roadmap scope/status changes | Review the updated roadmap against the current remote records; preserve prior claims as history when correction is needed |
 | Architectural conflict resolution | Conflicting issue/planning text and the approved architecture decision(s) | Identify the exact conflict; apply the authority hierarchy in §7; select and document a permitted issue disposition without changing architecture implicitly | Conflicting text; controlling architecture section/decision; rationale; linked disposition/successor record | Project-owner approval; architecture change additionally requires its own REA, review, and explicit approval | Confirm no prohibited project/reference/ownership change was introduced; verify the issue preserves its prior text and links to the decision |
+| Verification evidence review | Approved requirements and issue criteria; submitted test, CI, artifact, or witnessed-run evidence; commit/version and environment identity | Assess whether each evidence item directly addresses a stated criterion, whether the method and result are reproducible or reviewable, and what limitations remain; distinguish failed, absent, and out-of-scope checks | Criterion-to-evidence matrix; evidence URL/identifier; commit/version; environment; observed result; reviewer and date; limitations | Technical reviewer accepts sufficiency; project owner approves any exception or scope exclusion | Independently confirm evidence identity and scope against the source run/artifact; record Pass, Fail, or Unverified per criterion |
 | Sprint closure approval | Completed gates in §6; current issue and milestone data; audit and evidence register | Review every gate, exception, issue, and discrepancy; determine whether the approved sprint scope is complete and no closure-critical blocker remains | Gate checklist; complete issue/milestone reconciliation; evidence links; exception list; dated decision record | Explicit project-owner approval naming Sprint 1 and the exact scope being closed | Independently recheck GitHub issue/milestone state after authorized closure actions; report actual state, not intended state |
 
 No workflow may use an inferred state as a verified result. An unavailable
@@ -147,11 +148,11 @@ a pass.
 
 | Gate | Objective pass criteria | Required evidence and verification | Approval |
 |---|---|---|---|
-| **Requirements Approved** | The authoritative requirements document exists, is non-empty, has explicit approval, and every Sprint 1 product acceptance criterion is mapped to an issue and evidence or an approved disposition. | Inspect the current committed requirements artifact and approval record; compare the mapping to the complete milestone issue list. | Project owner confirms the requirements baseline and any accepted scope exclusions. |
+| **Requirements Approved** | The authoritative requirements document exists, is non-empty, has explicit approval, and every acceptance criterion for work in the approved Sprint 1 scope is mapped to an issue and direct evidence or an approved disposition. | Inspect the current committed requirements artifact and approval record; compare the criterion mapping to the complete milestone issue list and approved scope. | Project owner confirms the requirements baseline and any accepted scope exclusions. |
 | **Architecture Approved** | The approved architecture and project definitions are identified; every Sprint 1 issue and claimed implementation conforms, or has a separately approved architecture change. | Cite the exact architecture decision/section and review relevant implementation or verification evidence; resolve each conflict. | Project owner confirms the controlling architecture and approved exceptions. |
-| **Research Approved** | Every research gate applicable to Sprint 1 is complete, present, reviewed, and approved; no required research is inferred from a title or roadmap row. | Verify each artifact's content, status, and approval. REA-008 is the governing research source specified for this definition and must be located and reviewed; until then this gate is Unverified. | Project owner records acceptance of the research baseline. |
+| **Research Approved** | A reviewed applicability register identifies every REA required for the approved Sprint 1 scope; each applicable artifact is complete, present, reviewed, and approved. No required research is inferred from a title or roadmap row. | Verify the applicability rationale and each artifact's content, status, and approval. If a cited governing brief or source is unavailable, the affected research entry and this gate are Unverified. | Project owner records acceptance of the research baseline and any explicitly excluded research with rationale. |
 | **Audit Complete** | A dated audit checks the complete milestone issue set, roadmap scope, acceptance evidence, CI/artifact scope, and known discrepancies. | Audit includes a per-issue table and identifies unavailable evidence; independently compare it with current GitHub and repository records. | Reviewer signs the audit; owner accepts its findings, not merely its existence. |
-| **Open Issues Reviewed** | Every issue in the milestone has one approved disposition; no issue is unreviewed, and every issue retained in closure scope has all acceptance criteria verified. | Retrieve the full milestone membership; compare issue numbers and states with the disposition register and criterion evidence. | Owner approves each scope/disposition decision; technical reviewers approve evidence adequacy. |
+| **Open Issues Reviewed** | Every issue in the original milestone membership has one approved disposition. Every issue retained in closure scope has all acceptance criteria verified. A Blocked issue cannot pass this gate while it remains in closure scope; exclusion requires a separately approved disposition and complete traceability. | Retrieve the full milestone membership; compare issue numbers and states with the disposition register, approved scope changes, and criterion evidence. | Owner approves each scope/disposition decision; technical reviewers approve evidence adequacy. |
 | **Milestone Verified** | The exact Sprint 1 milestone identity, current state, and complete issue membership are directly retrievable and match the approved closure scope. | Record the GitHub milestone URL/ID, retrieval time, state, and issue list; re-query after authorized changes. | Owner approves any required milestone-state or membership action. |
 | **Verification Evidence Recorded** | Each in-scope acceptance criterion has direct, reviewable evidence identifying what was tested, result, environment, commit/version, and any limitation. CI success is credited only for the checks and platforms it actually ran. | Link test reports, CI runs/jobs, reviewable artifacts, and witnessed UI/runtime evidence as applicable; verify links and scope. | Technical reviewer accepts evidence; owner approves any explicitly accepted limitation or exception. |
 | **Owner Approval Recorded** | A dated decision explicitly names Sprint 1, its exact scope, the gate results, unresolved exceptions, and the decision to close or not close. | Inspect the durable approval record and ensure it is linked from the audit/roadmap or authoritative GitHub record. | Project owner approval is mandatory; approval does not substitute for any failed gate. |
@@ -184,20 +185,25 @@ every closure claim maps to evidence and owner approval. Preserve exact URLs,
 issue numbers, commit hashes, CI run/job identifiers, dates, and evidence
 limitations. Do not replace historical records; append linked decisions.
 
-**Conflict resolution order:**
+**Conflict resolution order for substantive project decisions:**
 
-1. `DEVELOPMENT_STANDARD.md` governs process and phase gates.
-2. Explicitly approved project requirements and architecture govern product
-   scope and architectural boundaries, respectively; neither may silently
-   amend the other.
-3. Approved research informs decisions but cannot override an approved
-   requirement or architecture decision.
-4. Reviewed definitions/contracts operationalize those authorities within
-   their approved scope.
-5. The roadmap and GitHub issues/milestones record approved scope and progress;
-   they do not independently override higher-authority artifacts.
-6. Unapproved notes, historical roadmap claims, and AI recommendations have
-   no authority to alter the above.
+1. **Approved architecture** (`DPV-ARCH-001` and its approved decision
+   records) controls architectural boundaries and project ownership.
+2. **Approved requirements** control product scope and acceptance where they
+   do not conflict with the approved architecture.
+3. **Reviewed and approved research** informs decisions but cannot override
+   approved architecture or requirements.
+4. **Reviewed definitions/contracts** operationalize higher-authority
+   decisions within their approved scope; they cannot amend those decisions.
+5. **The roadmap** records approved sequence and status; it cannot override
+   architecture, requirements, research, or definitions.
+
+`DEVELOPMENT_STANDARD.md` governs process and phase gates separately from this
+substantive hierarchy. GitHub issues and milestones are authoritative evidence
+of their actual current state and membership, but their text or state does not
+by itself approve a scope or architecture change. Unapproved notes, historical
+roadmap claims, and AI recommendations have no authority to alter these
+records.
 
 If two equally authoritative approved artifacts conflict, mark the affected
 gate Unverified and obtain a documented owner decision through the applicable
