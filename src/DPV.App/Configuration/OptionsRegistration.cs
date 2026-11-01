@@ -13,6 +13,22 @@ public static class OptionsRegistration
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services
+            .AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
+            .AddOptions<ScanningOptions>()
+            .Bind(configuration.GetSection(ScanningOptions.SectionName))
+            .ValidateOnStart();
+
+        services
+            .AddOptions<ViewerOptions>()
+            .Bind(configuration.GetSection(ViewerOptions.SectionName))
+            .ValidateOnStart();
+
         return services;
     }
 }

@@ -1,5 +1,7 @@
+using DPV.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace DPV.Infrastructure.DependencyInjection;
 
@@ -13,8 +15,24 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        _ = configuration;
         services.AddSingleton<IInfrastructureFoundationMarker, InfrastructureFoundationMarker>();
+        services.AddSingleton<IDatabaseConnectionFactory>(
+            _ =>
+            {
+                var location = configuration["Database:Location"];
+                if (string.IsNullOrWhiteSpace(location))
+                {
+                    throw new InvalidOperationException(
+                        "Configuration value 'Database:Location' is required for SQLite persistence.");
+                }
+
+                return new SqliteConnectionFactory(location);
+            });
+        services.AddSingleton<MigrationRunner>();
+        services.AddSingleton<DatabaseInitializer>();
+        services.AddSingleton<IHostedService>(
+            provider => provider.GetRequiredService<DatabaseInitializer>());
+
         return services;
     }
 }

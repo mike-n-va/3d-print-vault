@@ -2,47 +2,61 @@
 
 - **Document ID:** Commit-F-Owner-Decision-Package-008A
 - **Phase:** Commit F — owner decision package
-- **Status:** Draft — owner decisions not recorded
+- **Status:** Owner decision recorded — remediation continues; closure not authorized
 - **Prepared:** 2026-11-01
 - **Evidence baseline:** `bd83c55` — Commit E closure recommendation
-- **GitHub changes:** None
+- **GitHub changes:** Created [Issue #15](https://github.com/mike-n-va/3d-print-vault/issues/15) on the existing Sprint 1 - Foundation milestone; Issue #10 remains open and unchanged.
 
 ## Executive Summary
 
-This package presents the evidence and recommendations from REA-008,
-Definition-008A, and Commit B through Commit E for project-owner review. It
-provides fields to record decisions; no owner approval or rejection is
-asserted in this draft.
+This package records the evidence, recommendations, and owner decision
+provided by Mike Overholtz on 2026-11-01, based on REA-008, Definition-008A,
+and Commit B through Commit E.
 
 The current recommendation remains:
 
 **DO NOT RECOMMEND SPRINT 1 CLOSURE AT THIS TIME.**
 
 Commit D and Commit E identify unresolved scope and acceptance evidence,
-unverified milestone metadata, an unresolved Issue #10 disposition, missing
-closure-specific owner approval, and an unresolved REA-008 source-provenance
-limitation. Owner approval of this package cannot waive Definition-008A's
-closure gates. Sprint 1 may only be recommended for closure when every gate
-passes for the exact approved scope.
+Issue #10's conflict with the approved project structure, and the REA-008
+source-provenance limitation. Later authenticated retrieval verified the
+milestone metadata and current membership, while reconciliation to the
+approved closure scope remains outstanding. The owner accepted
+the evidence for review, approved issue dispositions as recommendations only,
+and later approved replacing Issue #10 with an architecture-compliant
+successor. Issue #15 has been created and its issue content and milestone
+association directly verified. Its ownership definition, four Domain
+contract declarations, and architecture review are documented in
+[DPV-REPOSITORY-CONTRACT-OWNERSHIP-001](../architecture/DPV-REPOSITORY-CONTRACT-OWNERSHIP-001.md)
+with a **PASS** disposition; AC-01 through AC-07 pass. The three required
+project builds pass. The automated architecture-test project build remains
+blocked by the separately documented App startup compile error. The owner
+also accepted REA-008 as a working
+artifact with its provenance limitation,
+required milestone verification, and directed continued governance
+remediation. These decisions do not waive Definition-008A's closure gates.
 
-This document does not close Sprint 1 or any issue, modify a milestone,
-approve an architecture change, authorize Sprint 2, or authorize
-implementation.
+This document records creation of Issue #15 in the existing Sprint 1
+milestone. It does not modify Issue #10, close Sprint 1 or any issue, modify
+milestone state, approve an architecture change, authorize Sprint 2, or
+authorize implementation.
 
 ## Scope and Decision Boundaries
 
-The owner is asked to review:
+The recorded owner decision covers:
 
 1. The governance package and current closure recommendation.
 2. The proposed dispositions for issues #1–#14.
-3. Issue #10's architecture conflict and proposed blocked disposition.
+3. Issue #10's architecture conflict and approved replacement disposition.
+   The approved replacement is tracked in Issue #15.
 4. The REA-008 provenance limitation.
-5. Milestone verification evidence and next steps.
-6. Whether to continue remediation or authorize a further closure review.
+5. Required milestone verification.
+6. Continuing governance remediation; closure review is not authorized.
 
 An authorization to conduct a review is not an authorization to close
-Sprint 1. No decision in this worksheet changes GitHub state; any later
-authorized change requires its own recorded action and verification.
+Sprint 1. Issue #15 was created under the separate explicit execution
+request and placed in the existing Sprint 1 milestone. Issue #10 remains
+open and unchanged; this record makes no other GitHub state change.
 
 ## Evidence Sources
 
@@ -52,27 +66,33 @@ authorized change requires its own recorded action and verification.
 - [Commit-C-Validation-008A](Commit-C-Validation-008A.md)
 - [Commit-D-Evidence-Collection-008A](Commit-D-Evidence-Collection-008A.md)
 - [Commit-E-Closure-Recommendation-008A](Commit-E-Closure-Recommendation-008A.md)
+- [Sprint-1-Governance-Decisions](Sprint-1-Governance-Decisions.md)
 - [Sprint 1 Closure Audit](SPRINT-1-CLOSURE-AUDIT-001.md)
 - [DPV-ARCH-001](../architecture/DPV-ARCH-001.md)
+- [DPV-REPOSITORY-CONTRACT-OWNERSHIP-001](../architecture/DPV-REPOSITORY-CONTRACT-OWNERSHIP-001.md)
 - [DPV-PROJECT-DEFINITIONS-001](../architecture/DPV-PROJECT-DEFINITIONS-001.md)
 - [DPV-ROADMAP-001](../roadmap/DPV-ROADMAP-001.md)
 
-The issue and milestone observations and their limitations are those recorded
-in Commit D. The milestone lookup returned HTTP 404 through the
-unauthenticated REST request; this does not establish that the milestone is
-absent, open, or closed. The separate approved REA-008 brief was not located.
+The Commit D issue observations are a dated snapshot. A later authenticated
+GitHub API retrieval on 2026-11-01 at 11:47:07 -05:00 directly identified
+milestone #1, `Sprint 1 - Foundation`, as open, with 11 open and 4 closed
+issues and current membership #1–#15. Issue #15 is on that existing
+milestone; Issue #10 remains open and unchanged. The retrieved membership
+still requires reconciliation with the exact approved closure scope because
+of the historical roadmap/scope discrepancy. The separate approved REA-008
+brief was not located.
 
 ## Governance Work Product Status
 
 | Work product | Status and qualification |
 |---|---|
-| REA-008 | Report exists; the separate approved source brief and provenance comparison remain unavailable. |
+| REA-008 | Accepted as a working governance artifact with limitation; the separate approved source brief and provenance comparison remain unavailable. Research Approved stays Conditional. |
 | Definition-008A | Governance contract is documented; it does not itself satisfy project closure gates. |
 | Commit B review | **PASS WITH REQUIRED CHANGES**; REA-008 provenance comparison remains outstanding. |
 | Commit C validation | Governance framework can support review; Sprint 1 closure evidence is incomplete. |
-| Commit D evidence collection | Issue inventory and available evidence are documented; milestone metadata, approved dispositions, and complete criterion evidence remain outstanding. |
+| Commit D evidence collection | Issue inventory and available evidence are documented; milestone metadata, execution of the owner-approved recommendations, and complete criterion evidence remain outstanding. |
 | Commit E recommendation | **DO NOT RECOMMEND SPRINT 1 CLOSURE AT THIS TIME.** |
-| Commit F owner decisions | Pending; no decision or approval is recorded in this draft. |
+| Commit F owner decisions | Recorded on 2026-11-01; continue governance remediation; closure review not authorized. |
 
 The governance framework is sufficient to guide a decision process. That
 assessment is distinct from whether project evidence passes the closure
@@ -84,16 +104,16 @@ Definition-008A requires all eight gates to pass for the exact approved scope.
 Owner approval cannot substitute for missing evidence or make an
 unverified/failed gate pass.
 
-| Closure gate | Current evidence assessment | Owner/reviewer decision requested |
+| Closure gate | Current status and evidence | Owner decision / remaining requirement |
 |---|---|---|
-| Requirements Approved | **Unverified** — approved baseline exists, but complete mapping of in-scope criteria to issues and evidence or approved dispositions is absent. | Confirm the baseline and review the completed mapping when available. |
-| Architecture Approved | **Unverified for Sprint 1 scope** — approved architecture exists, but scope/criteria conflicts including Issue #10 remain unresolved. | Confirm controlling authority; decide only after conflicts and scope are resolved. |
-| Research Approved | **Unverified** — REA-008 exists; its separate approved source brief and provenance comparison remain outstanding. | Choose how to handle the limitation; do not represent it as verified by approval alone. |
-| Audit Complete | **Unverified for closure** — historical audit and Commit D exist, but current milestone/scope and complete criterion reconciliation are not established. | Request a refreshed audit after evidence gaps are addressed. |
-| Open Issues Reviewed | **Fail** — proposed dispositions are not an approved register, and criterion-level evidence is incomplete. | Review and approve allowed dispositions and evidence for each issue. |
-| Milestone Verified | **Unverified** — issue records show an association; milestone identity, own state, and independent membership/counters were not retrieved. | Require direct verification from an authorized source. |
-| Verification Evidence Recorded | **Unverified** — available CI/audit records do not establish all in-scope acceptance criteria. | Require criterion-level evidence with source, result, commit/version, environment, and limitations. |
-| Owner Approval Recorded | **Fail / pending** — no durable Sprint 1 closure decision naming exact scope and gate results exists. | Record a dated decision only after reviewing the complete evidence and gate results. |
+| Requirements Approved | **Conditional** — approved baseline exists, but complete mapping of in-scope criteria to issues and evidence or approved dispositions is absent. | Complete and review the mapping when available. |
+| Architecture Approved | **Conditional** — Issue #15's ownership definition, four Domain contract boundaries, and architecture review are documented; AC-01 through AC-07 pass. Historical scope/topology reconciliation remains incomplete. The automated architecture-test project build is blocked by the separate App startup compile error. | Complete the remaining scope reconciliation; rerun automated architecture tests when the unrelated App build issue is resolved. |
+| Research Approved | **Conditional** — REA-008 is accepted as a working artifact, but its separate approved source brief and provenance comparison remain outstanding. | Compare and review if the original source is found. |
+| Audit Complete | **Conditional** — historical audit and Commit D exist, but current milestone/scope and complete criterion reconciliation are not established. | Refresh the audit after evidence gaps are addressed. |
+| Open Issues Reviewed | **Fail** — Issue #15's deliverables and AC-01 through AC-07 pass. Issue #10 remains open and unchanged; other Sprint 1 issue acceptance evidence and exact scope reconciliation remain incomplete. | Continue the remaining issue/scope evidence review. This package does not change Issue #10 or other GitHub state. |
+| Milestone Verified | **Fail** — authenticated retrieval verified milestone #1 (`Sprint 1 - Foundation`), its open state, and complete current membership #1–#15 (11 open, 4 closed). The membership has not been reconciled with the exact approved closure scope because of the historical roadmap/scope discrepancy. | Reconcile the verified membership against the approved scope and record the disposition of any discrepancy. |
+| Verification Evidence Recorded | **Conditional** — available CI/audit records do not establish all in-scope acceptance criteria. | Record criterion-level evidence with source, result, commit/version, environment, and limitations. |
+| Owner Approval Recorded | **Pass for the not-close decision only** — the owner provided a dated decision naming Sprint 1, the gate assessments, unresolved conditions, and direction not to authorize closure. This is not closure approval. | Record the supplied decision; no closure authorization granted. |
 
 **Current closure disposition: DO NOT RECOMMEND CLOSURE.** Gate results remain
 unpassed. A decision to accept risk, proceed with discussion, or authorize a
@@ -101,32 +121,62 @@ review does not waive Definition-008A requirements.
 
 ## Sprint 1 Issue Decision Package
 
-The following are Commit E proposals, not applied GitHub dispositions.
-Closed status does not independently prove acceptance criteria or approve a
-governance disposition. Open issues require approved disposition and
+On 2026-11-01, the owner approved the Commit D, Commit E, and governance
+register recommendations for Issues #1–#14 as individually recorded. The
+owner found the recommendations supported by the evidence package, traceable,
+and consistent with Definition-008A. This approval is for governance review
+purposes only; it is not an instruction to modify GitHub. Closed status does
+not independently prove acceptance criteria. Open issues still require
 criterion-level review before they can support closure.
 
-| Issue | Observed state | Proposed disposition for owner review | Decision |
+| Issue | Observed state | Owner-approved recommendation | Decision and execution boundary |
 |---|---|---|---|
-| [#1](https://github.com/mike-n-va/3d-print-vault/issues/1) | Closed | Valid; retain as closed historical work. | Pending |
-| [#2](https://github.com/mike-n-va/3d-print-vault/issues/2) | Closed | Superseded, proposed for obsolete project-topology criteria; preserve history and map to approved architecture. | Pending |
-| [#3](https://github.com/mike-n-va/3d-print-vault/issues/3) | Closed | Superseded, proposed for outdated library-selection criteria; preserve history. | Pending |
-| [#4](https://github.com/mike-n-va/3d-print-vault/issues/4) | Closed | Superseded, as recorded in the existing Sprint 1 review; preserve history. | Pending |
-| [#5](https://github.com/mike-n-va/3d-print-vault/issues/5) | Open | Valid, proposed; confirm exact scope and evidence. | Pending |
-| [#6](https://github.com/mike-n-va/3d-print-vault/issues/6) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#7](https://github.com/mike-n-va/3d-print-vault/issues/7) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#8](https://github.com/mike-n-va/3d-print-vault/issues/8) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#9](https://github.com/mike-n-va/3d-print-vault/issues/9) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#10](https://github.com/mike-n-va/3d-print-vault/issues/10) | Open | Blocked, proposed, pending owner-approved architecture-compliant disposition. | Pending |
-| [#11](https://github.com/mike-n-va/3d-print-vault/issues/11) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#12](https://github.com/mike-n-va/3d-print-vault/issues/12) | Open | Valid, proposed; reconcile scope and evidence. | Pending |
-| [#13](https://github.com/mike-n-va/3d-print-vault/issues/13) | Open | Valid, proposed; CI success alone does not establish issue acceptance. | Pending |
-| [#14](https://github.com/mike-n-va/3d-print-vault/issues/14) | Open | Valid, proposed; verify each criterion and reconcile scope. | Pending |
+| [#1](https://github.com/mike-n-va/3d-print-vault/issues/1) | Closed | Valid; retain as closed historical work. | Approved as governance recommendation only; no GitHub change authorized. |
+| [#2](https://github.com/mike-n-va/3d-print-vault/issues/2) | Closed | Superseded, proposed for obsolete project-topology criteria; preserve history and map to approved architecture. | Approved as governance recommendation only; preserve closed state and history. |
+| [#3](https://github.com/mike-n-va/3d-print-vault/issues/3) | Closed | Superseded, proposed for outdated library-selection criteria; preserve history. | Approved as governance recommendation only; no GitHub change authorized. |
+| [#4](https://github.com/mike-n-va/3d-print-vault/issues/4) | Closed | Superseded, as recorded in the existing Sprint 1 review; preserve history. | Approved as governance recommendation only; no GitHub change authorized. |
+| [#5](https://github.com/mike-n-va/3d-print-vault/issues/5) | Open | Valid, proposed; confirm exact scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#6](https://github.com/mike-n-va/3d-print-vault/issues/6) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#7](https://github.com/mike-n-va/3d-print-vault/issues/7) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#8](https://github.com/mike-n-va/3d-print-vault/issues/8) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#9](https://github.com/mike-n-va/3d-print-vault/issues/9) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#10](https://github.com/mike-n-va/3d-print-vault/issues/10) | Open | Replace with an architecture-compliant successor. | Owner-approved disposition: **Replace**. [Successor Issue #15](https://github.com/mike-n-va/3d-print-vault/issues/15) has been created on the existing Sprint 1 milestone. Issue #10 remains open and unchanged pending completion and verification of the replacement. |
+| [#11](https://github.com/mike-n-va/3d-print-vault/issues/11) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#12](https://github.com/mike-n-va/3d-print-vault/issues/12) | Open | Valid, proposed; reconcile scope and evidence. | Approved as governance recommendation only; remains open. |
+| [#13](https://github.com/mike-n-va/3d-print-vault/issues/13) | Open | Valid, proposed; CI success alone does not establish issue acceptance. | Approved as governance recommendation only; remains open. |
+| [#14](https://github.com/mike-n-va/3d-print-vault/issues/14) | Open | Valid, proposed; verify each criterion and reconcile scope. | Approved as governance recommendation only; remains open. |
 
-For each issue, the owner may approve the proposal, reject it with a rationale,
-or return it for additional review. Any approved disposition must satisfy
-Definition-008A, preserve the original issue history, and include required
-scope/evidence traceability. This table does not change issue state.
+The owner's approval is limited to accepting these recommendations for
+governance purposes. Any issue closure, reassignment, milestone modification,
+or other state change requires separate authorization and verification.
+Original issue history and required scope/evidence traceability must be
+preserved.
+
+The evidence-backed recommendations and their rationales are recorded in
+[Sprint-1-Governance-Decisions](Sprint-1-Governance-Decisions.md). They are
+approved as recommendations only; separate authorization and verification
+are required for any GitHub state change.
+
+### Successor Issue #15
+
+[Issue #15 — Sprint 1: Define Repository Contracts Using Approved
+Architecture Boundaries](https://github.com/mike-n-va/3d-print-vault/issues/15)
+was created under the explicit successor-creation request and attached to the
+existing `Sprint 1 - Foundation` milestone. Direct retrieval confirmed it is
+open, links to Issue #10, cites GOV-S1-018 and DPV-ARCH-001, preserves the
+original repository-contract intent, and includes the required architecture,
+scope, neutrality, dependency, and traceability constraints. Issue #10 was
+retrieved after creation and remains open and unchanged. The ownership
+definition, Issue #10 criterion mapping, and architecture review are now
+recorded in
+[DPV-REPOSITORY-CONTRACT-OWNERSHIP-001](../architecture/DPV-REPOSITORY-CONTRACT-OWNERSHIP-001.md).
+The four Domain-owned interfaces have been created as technology-neutral
+marker contracts; their signatures expose no infrastructure types. The
+ownership review assesses AC-01 through AC-07 as **PASS**, and its final
+Issue #15 disposition is **PASS**. Domain, Infrastructure, and UI builds pass.
+The automated architecture-test project build remains blocked because App
+startup fails to compile at `WithDeveloperTools`; this is documented
+separately and no App source was changed.
 
 ## Issue #10 Decision Package
 
@@ -136,33 +186,48 @@ scope/evidence traceability. This table does not change issue state.
   “Placed in Application layer.”
 - The approved project structure does not include `DPV.Application`.
 - DPV.Domain owns the public contract for the Library Import Walking
-  Skeleton; this decision does not settle ownership of every repository
-  interface requested by Issue #10.
-- No approved disposition exists.
+  Skeleton. DPV-ARCH-001 does not enumerate these four repository
+  interfaces individually; the approved replacement ownership review
+  assigns their public boundaries to Domain.
+- The owner has since approved replacing Issue #10 with an
+  architecture-compliant successor; the earlier Keep Blocked decision is
+  superseded.
 
 ### Recommendation
 
-Proposed disposition: **Blocked pending owner decision**. Do not close,
-implement as written, silently rewrite, add a project, or infer ownership
-from an import-specific architecture decision.
+**Owner-approved disposition: Replace Issue #10 with an
+architecture-compliant successor.** Preserve the original issue history and
+traceability; align the successor with DPV-ARCH-001 and the approved project
+structure; remove all `DPV.Application` references; define repository
+contract ownership using approved architecture authorities; retain
+equivalent business intent where applicable. Do not introduce a project or
+layer, modify approved architecture, or alter Sprint scope without explicit
+approval.
+
+The decision is recorded as GOV-S1-018 in
+[Sprint-1-Governance-Decisions](Sprint-1-Governance-Decisions.md); the prior
+Keep Blocked decision GOV-S1-003 is retained as history and superseded. The
+successor is [Issue #15](https://github.com/mike-n-va/3d-print-vault/issues/15).
+It has been created and its title, body, traceability, and existing Sprint 1
+milestone association were directly reviewed. Its acceptance deliverables and
+architecture conformance are assessed in
+[DPV-REPOSITORY-CONTRACT-OWNERSHIP-001](../architecture/DPV-REPOSITORY-CONTRACT-OWNERSHIP-001.md)
+as **PASS**. All seven acceptance criteria pass; the automated architecture
+test project build remains blocked by the separately documented App startup
+compile error. Issue #10 remains open and unchanged.
 
 ### Owner decision
 
-Select one and record rationale:
-
-- [ ] Maintain as written, with an explanation of how it conforms to approved architecture.
-- [ ] Supersede, citing the approved decision and preserving the original issue history.
-- [ ] Replace, identifying the approved successor and criterion mapping.
-- [ ] Re-scope, documenting architecture-compliant criteria and approval.
-- [ ] Move to an identified, authorized future sprint, preserving traceability.
-- [ ] Keep blocked and identify the decision/evidence required to unblock.
-- [ ] Request additional analysis.
-
-**Owner rationale / conditions:**
-
-________________________________________________________________________
-
-________________________________________________________________________
+**Replace Issue #10.** The owner determined the issue's objective remains
+valid but its `DPV.Application` acceptance target conflicts with approved
+architecture. The replacement is to preserve history and traceability,
+conform to the approved project structure, remove references to
+`DPV.Application`, define repository contract ownership using approved
+architecture authorities, and retain equivalent business intent where
+applicable. Issue #15 has been created with these constraints and placed on
+the existing Sprint 1 milestone. The contract-only deliverables and review
+now pass AC-01 through AC-07; Issue #10 remains open and unchanged. This
+document does not authorize or perform issue state changes.
 
 ## REA-008 Provenance Decision Package
 
@@ -172,21 +237,18 @@ The repository REA-008 report exists and documents that the separately
 referenced approved source brief was not located. The report does not claim
 to reproduce or verify the missing brief.
 
+The owner decision is **Accept REA-008 as a working governance artifact with
+the documented limitation**, recorded as GOV-S1-004 in
+[Sprint-1-Governance-Decisions](Sprint-1-Governance-Decisions.md). This does
+not establish provenance: the separate approved source brief remains
+unavailable, the Research Approved gate remains **CONDITIONAL**, and
+discovery of the source triggers comparison and review.
+
 ### Owner decision
 
-Select one; approval does not convert unavailable provenance into verified
-evidence:
-
-- [ ] Require the approved source brief to be located and compared before the Research Approved gate can pass.
-- [ ] Accept the report as a working artifact while retaining the provenance limitation and an explicit gate exception/status.
-- [ ] Request additional research under an authorized scope.
-- [ ] Escalate for governance review.
-
-**Decision rationale, evidence reference, and any review trigger:**
-
-________________________________________________________________________
-
-________________________________________________________________________
+**Accept as a working governance artifact with limitation.** Research
+Approved remains Conditional; the missing source brief remains unresolved,
+and discovery of the original source triggers comparison and review.
 
 ## Milestone Verification Decision Package
 
@@ -196,69 +258,123 @@ The issue records retrieved for Commit D display `Sprint 1 - Foundation`.
 The milestone's exact identity, own state, and independent membership/counters
 were not retrieved. The 404 response is inconclusive.
 
+The recorded assessment is **unresolved (partially evidenced)**, as captured
+by GOV-S1-005 and GOV-S1-011 in
+[Sprint-1-Governance-Decisions](Sprint-1-Governance-Decisions.md). No
+milestone state is inferred.
+
 ### Owner decision
 
-- [ ] Require direct milestone verification through an authorized source.
-- [ ] Return the evidence collection for an identified verification method.
-- [ ] Escalate access/retrieval limitations for governance review.
+**Require direct milestone verification** through an authorized source.
+This was subsequently performed by authenticated retrieval on 2026-11-01 at
+11:47:07 -05:00: milestone #1 is open and its current membership is #1–#15
+(11 open, 4 closed).
 
-Do not select “accept existing evidence” as a substitute for the
-Definition-008A Milestone Verified gate; that gate requires direct
-verification of identity, current state, and complete membership.
+The exact membership still requires reconciliation with the approved
+closure scope because of the documented historical roadmap/scope
+discrepancy. The Definition-008A Milestone Verified gate therefore remains
+Fail; issue-level references alone are insufficient.
 
-**Decision rationale / authorized evidence source:**
-
-________________________________________________________________________
+The milestone is open; no milestone state or membership was modified.
 
 ## Sprint 1 Closure Review Authorization
 
-Commit E recommends against closure at this time. The owner may direct that
-governance remediation continue or authorize a further review to document
-current gate results. Authorization to conduct a review does not authorize
-closure, milestone mutation, issue closure, or Sprint 2.
-
-- [ ] Continue governance remediation; do not initiate closure review.
-- [ ] Authorize a further evidence-based closure review after the listed prerequisites are met.
-- [ ] Request a review now solely to record gate failures/unverified items; no closure action is authorized.
-
-**Decision rationale, scope, and any prerequisites:**
-
-________________________________________________________________________
+**Owner decision: Continue Governance Remediation.** Sprint 1 closure review
+is **NOT AUTHORIZED**. Do not close Sprint 1 or its milestone, authorize
+Sprint 2, or modify issue states until all closure gates pass. A later review
+or any state change requires its own authorization.
 
 ## Final Owner Decision Record
 
-Complete this section only when the owner has made and communicated a
-decision. An unchecked or blank field means no decision has been recorded.
+**Owner:** Mike Overholtz
 
-**Owner name:** ______________________________________________
+**Decision date:** 2026-11-01
 
-**Decision date:** ___________________________________________
+**Governance package:** **APPROVED** — no additional governance
+documentation required.
 
-**Governance package:** [ ] Approve  [ ] Reject  [ ] Return for revision
+**Evidence package:** **ACCEPTED FOR REVIEW** — evidence accurately states
+available facts and limitations; sufficient for governance decisions, not
+Sprint 1 closure.
 
-**Evidence package:** [ ] Accept for review  [ ] Reject  [ ] Return for additional evidence
+**Issue dispositions:** **APPROVED AS INDIVIDUALLY RECORDED, AS GOVERNANCE
+RECOMMENDATIONS ONLY.** This approval was limited to governance review and
+did not itself authorize GitHub changes. The separate follow-up decision
+approved replacing Issue #10; a later explicit execution request created
+Issue #15 on the existing Sprint 1 milestone. Issue #10 remains open and
+unchanged while Issue #15's acceptance work is pending. Any other issue
+closure, reassignment, milestone modification, or state change requires its
+own authorization, execution, and verification.
 
-**Issue dispositions:** [ ] Approve as individually recorded  [ ] Reject  [ ] Return for review
+**Issue #10:** **REPLACE** with an architecture-compliant successor, as
+approved by the owner's follow-up decision dated 2026-11-01. The successor
+must preserve Issue #10 history and traceability, align with DPV-ARCH-001 and
+the approved project structure, remove `DPV.Application` references, define
+repository-contract ownership using approved architecture authorities, and
+retain equivalent business intent where applicable. This successor is
+[Issue #15](https://github.com/mike-n-va/3d-print-vault/issues/15), created
+on the existing Sprint 1 milestone. Its acceptance work and replacement
+verification remain pending; Issue #10 remains open and unchanged.
 
-**Issue #10 disposition:** ___________________________________
+**REA-008 provenance:** **ACCEPTED AS A WORKING GOVERNANCE ARTIFACT WITH
+LIMITATION.** The source brief remains unresolved, Research Approved remains
+Conditional, and discovery of the original source triggers comparison and
+review.
 
-**REA-008 provenance decision:** _____________________________
+**Milestone verification:** **REQUIRED** for exact identity, state, and
+complete membership. This was subsequently performed by authenticated
+retrieval on 2026-11-01 at 11:47:07 -05:00: milestone #1 is open and its
+current issue membership is #1–#15 (11 open, 4 closed). Reconciliation with
+the exact approved closure scope remains outstanding; issue-level references
+alone are insufficient.
 
-**Milestone verification decision:** _________________________
+**Closure review direction:** **CONTINUE GOVERNANCE REMEDIATION; SPRINT 1
+CLOSURE REVIEW NOT AUTHORIZED.** Do not close Sprint 1 or its milestone,
+modify issue states, or authorize Sprint 2 until all closure gates pass.
 
-**Closure review direction:** ________________________________
+**Gate statuses acknowledged:**
 
-**Gate statuses reviewed (attach/link evidence if updated):**
+| Closure gate | Owner-acknowledged status |
+|---|---|
+| Requirements Approved | CONDITIONAL |
+| Architecture Approved | CONDITIONAL |
+| Research Approved | CONDITIONAL |
+| Audit Complete | CONDITIONAL |
+| Open Issues Reviewed | FAIL |
+| Milestone Verified | FAIL |
+| Verification Evidence Recorded | CONDITIONAL |
+| Owner Approval Recorded | PASS for this not-close/remediation decision only |
 
-________________________________________________________________________
+Owner approval of this record does **not** convert failing or unverified
+gates into passing gates. Definition-008A remains authoritative. The
+milestone is now verified as open with current membership #1–#15, but
+reconciliation to the approved closure scope remains outstanding. “Sprint 1
+remains open” records the governance direction and is not a claim that any
+issue or milestone was closed.
 
-**Exceptions, conditions, and rationale:**
+**Approval source:** Owner-provided Final Owner Decision Record received in
+conversation on 2026-11-01. No signature or approval reference was supplied;
+none is implied by this transcription.
 
-________________________________________________________________________
+**Issue #10 follow-up decision:** Owner-provided Issue #10 Owner Decision
+received in conversation on 2026-11-01. It supersedes the earlier Keep
+Blocked decision and approves the Replace disposition with the successor
+constraints recorded above. The subsequent explicit execution request created
+Issue #15; direct retrieval confirmed its content and milestone association.
+This record does not claim that Issue #15's acceptance criteria are complete
+or that Issue #10 has been changed.
 
-________________________________________________________________________
-
-**Owner approval reference/signature:** ______________________
+**Issue disposition approval:** Owner-provided Issue Dispositions decision
+received on 2026-11-01. It expressly approves the Commit D, Commit E, and
+Sprint-1-Governance-Decisions recommendations for Issues #1–#14 as
+governance recommendations only. This approval does not change GitHub state,
+close an issue, modify milestone assignment, approve Issue #10's final
+disposition, authorize Sprint 1 closure, waive Definition-008A gates, or
+convert recommendations into acceptance evidence. The separate follow-up
+Issue #10 Owner Decision subsequently approved its Replace disposition; that
+decision is recorded above. The subsequent execution request created Issue
+#15; its content and milestone association were directly reviewed. Its
+acceptance criteria are not complete, and Issue #10 remains unchanged.
 
 No selection above automatically changes a GitHub record or passes a gate.
 Any future closure decision must identify the exact Sprint 1 scope and show
@@ -267,13 +383,16 @@ the sprint remains not ready for closure.
 
 ## Final Recommendation
 
-Until the required evidence and decisions are complete, the recommended
-owner action is:
+The recorded owner action is:
 
 **CONTINUE GOVERNANCE REMEDIATION; DO NOT RECOMMEND SPRINT 1 CLOSURE.**
 
-Outstanding blockers include milestone verification, approved issue
-dispositions, Issue #10 disposition, complete criterion-level evidence,
-closure-specific owner approval, and the REA-008 provenance limitation.
-This draft records no owner decision, modifies no GitHub/project state, and
-does not authorize Sprint 2 or implementation.
+Outstanding blockers include reconciliation of verified milestone membership
+to the approved closure scope, governance execution for approved issue
+recommendations, completion and verification of Issue #10's approved
+replacement, and complete criterion-level evidence. The REA-008 provenance
+limitation is accepted for use as a working artifact but remains unresolved
+and keeps Research Approved Conditional. Issue #15 creation is recorded above;
+Issue #10 and milestone state remain unchanged. No further GitHub/project
+state change is authorized, and Sprint 2 and implementation remain
+unauthorized.

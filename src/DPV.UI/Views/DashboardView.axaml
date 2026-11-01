@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:DataType="viewModels:DashboardViewModel"
+             x:Class="DPV.UI.Views.DashboardView">
+    <StackPanel Spacing="8"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Center">
+        <TextBlock Text="{Binding Title}"
+                   FontSize="26"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Description}"
+                   Foreground="#5C6873"
+                   TextWrapping="Wrap"
+                   HorizontalAlignment="Center" />
+    </StackPanel>
+</UserControl>
