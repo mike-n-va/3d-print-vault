@@ -1,52 +1,53 @@
-# \# 3D Print Vault
+# 3D Print Vault
 
-# 
+Plex for STL files.
 
-# Plex for STL Files.
+3D Print Vault is a desktop application for organizing, tracking, searching, and visualizing large collections of 3D printing models.
 
-# 
+## Status
 
-# 3D Print Vault is a desktop application designed to organize, track, search, and visualize large collections of 3D printing models.
+Early development. The solution structure, dependency injection bootstrap, and test foundations are in place. Feature work is beginning.
 
-# 
+## Planned Features
 
-# \## Core Features
+- Artist tracking
+- Collection management
+- Thumbnail generation
+- Interactive 3D viewer
+- Print tracking
+- Duplicate detection
+- Advanced search
 
-# 
+## Technology
 
-# \- Artist Tracking
+- C# / .NET 10
+- Avalonia UI
+- SQLite
+- xUnit v3 with ArchUnitNET architecture tests
 
-# \- Collection Management
+## Building
 
-# \- Thumbnail Generation
+Requires the .NET 10 SDK. The SDK version is pinned in `global.json`.
 
-# \- Interactive 3D Viewer
+```bash
+dotnet build DPV.sln
+dotnet test DPV.sln
+```
 
-# \- Print Tracking
+## Solution Layout
 
-# \- Duplicate Detection
+| Project | Purpose |
+| --- | --- |
+| `src/DPV.Domain` | Entities, value objects, and contracts |
+| `src/DPV.Infrastructure` | Persistence, search, thumbnails, and import |
+| `src/DPV.UI` | Avalonia views and view models |
+| `src/DPV.App` | Composition root and host |
+| `tests/DPV.Tests` | Unit, integration, and architecture tests |
 
-# \- Advanced Search
+## Documentation
 
-# 
+Process and architecture documents live under `docs/`. `DEVELOPMENT_STANDARD.md` is the governing document for all development work.
 
-# \## Technology
+## License
 
-# 
-
-# \- C# .NET 9
-
-# \- Avalonia UI
-
-# \- SQLite
-
-# \- Helix Toolkit
-
-# 
-
-# \## Project Status
-
-# 
-
-# Planning Phase
-
+[MIT](LICENSE)
