@@ -38,6 +38,49 @@ internal static class TestRepository
             $"Project file for '{projectName}' was not found under '{Root}'.");
     }
 
+    public static IReadOnlyList<string> GetPackageReferences(string projectName)
+    {
+        var document = XDocument.Load(ProjectPath(projectName));
+        return document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PackageReference")
+            .Select(element => element.Attribute("Include")?.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static string? GetProjectProperty(string projectName, string propertyName)
+    {
+        var document = XDocument.Load(ProjectPath(projectName));
+        var propertyGroup = document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PropertyGroup")
+            .FirstOrDefault(group => group.Elements().Any(element =>
+                element.Name.LocalName.Equals(propertyName, StringComparison.OrdinalIgnoreCase)));
+
+        return propertyGroup?
+            .Elements()
+            .FirstOrDefault(element =>
+                element.Name.LocalName.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+            ?.Value;
+    }
+
+    public static IEnumerable<string> EnumerateSourceFiles(string projectName)
+    {
+        var projectDirectory = Path.GetDirectoryName(ProjectPath(projectName))
+            ?? throw new InvalidOperationException($"Could not resolve directory for '{projectName}'.");
+
+        return Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static string AppProjectDirectory =>
+        Path.Combine(Root, "src", "DPV.App");
+
     public static IReadOnlyList<string> GetProjectReferences(string projectName)
     {
         var document = XDocument.Load(ProjectPath(projectName));
