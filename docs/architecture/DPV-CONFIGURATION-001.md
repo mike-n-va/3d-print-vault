@@ -647,7 +647,7 @@ All Infrastructure modules shall follow a common pattern.
 ```text
 FeatureName/
 
-    Contracts/
+    Contracts/  (optional; module-local adapter contracts only)
 
     Models/
 
@@ -663,7 +663,7 @@ Duplicates/
 
     Contracts/
 
-        IDuplicateDetectionService.cs
+        IFileIdentityReader.cs
 
     Models/
 
@@ -703,6 +703,11 @@ Import/
 
     Services/
 ```
+
+For cross-project use cases, the public contract belongs in
+`DPV.Domain.Contracts`; this Infrastructure `Contracts/` folder is reserved
+for module-local adapter boundaries and must not duplicate that public
+contract.
 
 ---
 
