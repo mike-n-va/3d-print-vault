@@ -89,7 +89,7 @@ internal static class TestRepository
             .Where(element => element.Name.LocalName == "ProjectReference")
             .Select(element => element.Attribute("Include")?.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => Path.GetFileNameWithoutExtension(value!))
+            .Select(value => Path.GetFileNameWithoutExtension(value!.Replace('\\', '/')))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
