@@ -1,18 +1,139 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             xmlns:converters="using:DPV.UI.Converters"
              xmlns:viewModels="using:DPV.UI.ViewModels"
              x:DataType="viewModels:DashboardViewModel"
              x:Class="DPV.UI.Views.DashboardView">
-    <StackPanel Spacing="8"
-                VerticalAlignment="Center"
-                HorizontalAlignment="Center">
-        <TextBlock Text="{Binding Title}"
-                   FontSize="26"
-                   FontWeight="SemiBold"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="{Binding Description}"
-                   Foreground="#5C6873"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center" />
-    </StackPanel>
+    <UserControl.Resources>
+        <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
+    </UserControl.Resources>
+    <Grid Margin="24" ColumnDefinitions="*,12,360">
+    <DockPanel Grid.Column="0" LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Spacing="12">
+            <TextBlock Text="{Binding Title}"
+                       FontSize="26"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Description}"
+                       Foreground="#5C6873"
+                       TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                <TextBox x:Name="LibraryPathBox"
+                         Grid.Column="0"
+                         PlaceholderText="Library folder"
+                         Text="{Binding RootPath}" />
+                <Button x:Name="BrowseFolderButton"
+                        Grid.Column="1"
+                        Content="Browse"
+                        Click="BrowseFolderClick" />
+                <Button x:Name="ImportButton"
+                        Grid.Column="2"
+                        Content="Import"
+                        Command="{Binding ImportCommand}" />
+                <Button x:Name="CancelImportButton"
+                        Grid.Column="3"
+                        Content="Cancel"
+                        Command="{Binding CancelCommand}" />
+                <Button x:Name="DuplicatesButton"
+                        Grid.Column="4"
+                        Content="Duplicates"
+                        Command="{Binding ShowDuplicatesCommand}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,220" ColumnSpacing="8">
+                <TextBox x:Name="SearchBox"
+                         PlaceholderText="Search models"
+                         Text="{Binding SearchQuery}" />
+                <ComboBox x:Name="TagFilterBox"
+                          Grid.Column="1"
+                          ItemsSource="{Binding TagFilterChoices}"
+                          SelectedItem="{Binding TagFilter}"
+                          PlaceholderText="All tags" />
+            </Grid>
+            <ProgressBar x:Name="ImportProgressBar"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="{Binding ProgressPercentage}"
+                         IsIndeterminate="{Binding IsScanning}" />
+            <TextBlock x:Name="ImportStatusText"
+                       Text="{Binding CurrentStatusText}" />
+        </StackPanel>
+        <ListBox x:Name="ModelList"
+                 ItemsSource="{Binding Models}"
+                 SelectedItem="{Binding SelectedModel}"
+                 Margin="0,16,0,0">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="catalog:ModelSummaryDto">
+                    <Grid ColumnDefinitions="48,*" ColumnSpacing="8" Margin="0,4">
+                        <Image Width="48"
+                               Height="48"
+                               Stretch="Uniform"
+                               Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding FilePath}" Foreground="#5C6873" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+    <GridSplitter Grid.Column="1" Width="12" Background="Transparent" />
+    <Border x:Name="InspectorPanel"
+            Grid.Column="2"
+            Padding="16"
+            CornerRadius="8"
+            BorderThickness="1"
+            BorderBrush="#2A3340">
+        <ScrollViewer>
+            <StackPanel Spacing="12">
+                <TextBlock Text="Model Inspector" FontSize="18" FontWeight="SemiBold" />
+                <Border Height="180"
+                        CornerRadius="4"
+                        Background="#1E1E1E"
+                        IsVisible="{Binding HasSelectedModel}">
+                    <Image Stretch="Uniform"
+                           Source="{Binding PreviewPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
+                </Border>
+                <TextBlock Text="Select a model to inspect its files and metadata."
+                           Foreground="#5C6873"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding !HasSelectedModel}" />
+                <StackPanel Spacing="4" IsVisible="{Binding HasSelectedModel}">
+                    <TextBlock Text="Model name" Foreground="#5C6873" FontSize="12" />
+                    <TextBlock Text="{Binding DetailedModel.Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Artist" Foreground="#5C6873" FontSize="12" />
+                    <TextBox PlaceholderText="Artist name"
+                             Text="{Binding ArtistDraft}" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Collection" Foreground="#5C6873" FontSize="12" />
+                    <TextBox PlaceholderText="Collection name"
+                             Text="{Binding CollectionDraft}" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Tags" Foreground="#5C6873" FontSize="12" />
+                    <TextBox PlaceholderText="miniature, supported, monster"
+                             Text="{Binding TagsDraft}" />
+                </StackPanel>
+                <Button x:Name="SaveMetadataButton"
+                        Content="Save metadata"
+                        Command="{Binding SaveMetadataCommand}"
+                        HorizontalAlignment="Stretch" />
+                <TextBlock Text="Associated files" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding DetailedModel.Files}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="catalog:ModelFileDto">
+                            <StackPanel Spacing="2" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding FileHash}" Foreground="#5C6873" FontSize="12" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+    </Grid>
 </UserControl>

@@ -1,3 +1,5 @@
+using DPV.Domain.Contracts.Import;
+using DPV.Infrastructure.Import;
 using DPV.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +31,13 @@ public static class InfrastructureServiceCollectionExtensions
                 return new SqliteConnectionFactory(location);
             });
         services.AddSingleton<MigrationRunner>();
+        services.AddSingleton<SqliteCatalogStore>();
+        services.AddSingleton<IModelCatalogQuery, SqliteModelCatalogQuery>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IModelCatalogQuery, DapperCatalogQuery>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IModelDetailRepository, DapperModelDetailRepository>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IDuplicateRepository, DapperDuplicateRepository>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IThumbnailService, ThumbnailService>();
+        services.AddSingleton<IModelImportService, ModelImportService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<IHostedService>(
             provider => provider.GetRequiredService<DatabaseInitializer>());

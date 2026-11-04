@@ -22,6 +22,7 @@ public static class OptionsRegistration
         services
             .AddOptions<ScanningOptions>()
             .Bind(configuration.GetSection(ScanningOptions.SectionName))
+            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         services

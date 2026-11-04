@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.DuplicatesView"
+             x:DataType="viewModels:DuplicatesViewModel">
+    <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,16">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding StatusText}" Foreground="#5C6873" TextWrapping="Wrap" />
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+            <Button x:Name="MergeDuplicatesButton"
+                    Content="Keep primary and merge others"
+                    Command="{Binding MergeCommand}" />
+            <Button x:Name="DeleteDuplicateButton"
+                    Content="Delete selected file"
+                    Command="{Binding DeleteCommand}" />
+            <Button x:Name="IgnoreDuplicatesButton"
+                    Content="Ignore"
+                    Command="{Binding IgnoreCommand}" />
+        </StackPanel>
+        <Grid ColumnDefinitions="*,16,*">
+            <ListBox x:Name="DuplicateGroupList"
+                     ItemsSource="{Binding Groups}"
+                     SelectedItem="{Binding SelectedGroup}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="catalog:DuplicateGroupDto">
+                        <StackPanel Spacing="2" Margin="0,6">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding DuplicateCount}" FontWeight="SemiBold" />
+                                <TextBlock Text="copies" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ContentHash}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding FileSizeBytes}" Foreground="#5C6873" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <ListBox Grid.Column="2"
+                     x:Name="DuplicateFileList"
+                     ItemsSource="{Binding SelectedFiles}"
+                     SelectedItem="{Binding SelectedFile}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="catalog:DuplicateFileItem">
+                        <StackPanel Spacing="2" Margin="0,6">
+                            <TextBlock Text="{Binding ModelName}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding LastModified}" Foreground="#5C6873" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </DockPanel>
+</UserControl>

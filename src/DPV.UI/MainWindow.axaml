@@ -19,6 +19,9 @@
         <DataTemplate DataType="{x:Type viewModels:DashboardViewModel}">
             <views:DashboardView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:DuplicatesViewModel}">
+            <views:DuplicatesView />
+        </DataTemplate>
     </Window.DataTemplates>
     <Grid ColumnDefinitions="248,*">
         <Border x:Name="SidebarRegion"
@@ -46,6 +49,14 @@
                             Padding="12,10"
                             Command="{Binding ShowDashboardCommand}">
                         <TextBlock Text="Dashboard" FontWeight="SemiBold" />
+                    </Button>
+                    <Button x:Name="DuplicatesNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowDuplicatesCommand}">
+                        <TextBlock Text="Duplicates" FontWeight="SemiBold" />
                     </Button>
                     <Border Padding="12,10">
                         <TextBlock Text="Artists" Foreground="#D6DEE5" />

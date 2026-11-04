@@ -1,5 +1,8 @@
 using System.Text.Json;
 using DPV.App.Configuration;
+using DPV.Domain.Contracts.Import;
+using DPV.Infrastructure.Import;
+using DPV.Infrastructure.Persistence;
 using DPV.App.DependencyInjection;
 using DPV.App.Startup;
 using DPV.Infrastructure.DependencyInjection;
@@ -117,6 +120,38 @@ public class CompositionRootIntegrationTests
     }
 
     [Fact]
+    public async Task InvalidScanningMaxFileSizeFailsDuringHostStartValidation()
+    {
+        var builder = CreateIntegrationHostBuilder(new Dictionary<string, string?>
+        {
+            ["Application:ApplicationName"] = "DPV Integration Test",
+            ["Scanning:MaxFileSizeBytes"] = "50"
+        });
+
+        using var host = builder.Build();
+        var exception = await Assert.ThrowsAnyAsync<Exception>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("MaxFileSizeBytes", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WhitespaceScanningRootPathFailsDuringHostStartValidation()
+    {
+        var builder = CreateIntegrationHostBuilder(new Dictionary<string, string?>
+        {
+            ["Application:ApplicationName"] = "DPV Integration Test",
+            ["Scanning:RootPath"] = " "
+        });
+
+        using var host = builder.Build();
+        var exception = await Assert.ThrowsAnyAsync<Exception>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("RootPath", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidApplicationOptionsFailDuringHostStartValidation()
     {
         var builder = CreateIntegrationHostBuilder(new Dictionary<string, string?>
@@ -130,6 +165,36 @@ public class CompositionRootIntegrationTests
         Assert.False(
             string.IsNullOrWhiteSpace(exception.Message),
             "Invalid options should fail during options validation on host start.");
+    }
+
+    [Fact]
+    public void ImportPipelineAndDashboardResolveFromScanningOptions()
+    {
+        using var host = BuildValidatedHost(new Dictionary<string, string?>
+        {
+            ["Application:ApplicationName"] = "DPV Integration Test",
+            ["Scanning:RootPath"] = @"C:\library",
+            ["Scanning:BatchLimit"] = "25",
+            ["Scanning:MaxFileSizeBytes"] = "4096"
+        });
+
+        Assert.IsType<ModelImportService>(host.Services.GetRequiredService<IModelImportService>());
+        Assert.IsType<SqliteModelCatalogQuery>(host.Services.GetRequiredService<IModelCatalogQuery>());
+        Assert.IsType<DapperCatalogQuery>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IModelCatalogQuery>());
+        Assert.IsType<DapperModelDetailRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IModelDetailRepository>());
+        Assert.IsType<DapperDuplicateRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IDuplicateRepository>());
+        Assert.IsType<ThumbnailService>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IThumbnailService>());
+        Assert.IsType<SqliteConnectionFactory>(host.Services.GetRequiredService<IDatabaseConnectionFactory>());
+        Assert.NotNull(host.Services.GetRequiredService<MigrationRunner>());
+        Assert.NotNull(host.Services.GetRequiredService<SqliteCatalogStore>());
+
+        var dashboard = host.Services.GetRequiredService<DashboardViewModel>();
+        Assert.Equal(@"C:\library", dashboard.RootPath);
+        Assert.Equal(25, dashboard.BatchLimit);
+        Assert.Equal(4096, dashboard.MaxFileSizeBytes);
+        Assert.True(dashboard.ImportCommand.CanExecute(null));
+        dashboard.RootPath = " ";
+        Assert.False(dashboard.ImportCommand.CanExecute(null));
     }
 
     [Fact]

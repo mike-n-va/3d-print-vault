@@ -7,17 +7,20 @@ Master roadmap for 3D Print Vault.
 # Current Phase
 
 ```text
-Sprint 2 readiness — blocked; implementation not authorized
+Sprint 2 library-import walking skeleton — complete and verified
 ```
 
-Sprint 1's roadmap closure statement is under review. The GitHub milestone
-contains open Sprint 1 issues, and Sprint 1 acceptance evidence is incomplete.
-See [SPRINT-1-CLOSURE-AUDIT-001.md](../reviews/SPRINT-1-CLOSURE-AUDIT-001.md).
-
-The mandatory project documents were empty on the audited remote `main`
-(`8fdb197808ff0ea736cba12a2ddd2f1b7937380f`). Local versions are now reviewed
-and approved by the project owner, but remain uncommitted and unpublished.
-Sprint 1 issue scope/disposition and Commit A authorization remain outstanding.
+Sprint 1 closure was authorized by GOV-S1-023. Sprint 2 Commits A through F
+are implemented on `feature/v2-fallback`. Sprint 3 `DPV-S3-001` adds SQLite
+FTS5 search over model names and file paths, with tag filtering and a
+debounced dashboard search box. Sprint 3 `DPV-S3-002` adds schema version 4
+for artists, collections, and tags, plus a dashboard inspector that loads
+file metadata and saves those bindings. Sprint 3 `DPV-S3-003` lists exact
+SHA-256 duplicates and lets the user merge metadata, ignore a hash, or delete
+one selected file. Sprint 3 `DPV-S3-004` caches an isometric STL preview per content hash and shows it in the library list and inspector. The xUnit suite completed 109 tests, 0 failures, including
+architecture, import, rescan, search, inspector, duplicate, and dashboard
+checks. The section below titled "Sprint 1 Foundation — Closure Not Verified"
+is the historical audit record, not the current phase.
 
 ---
 
@@ -73,12 +76,12 @@ corresponding phase begins.
 | Planning ID | Gate / deliverable | Required scope and exit evidence |
 |---|---|---|
 | DPV-S2-001 | REA — Library scanning and persistence research | Complete — REA-007 and its Domain-contract / Infrastructure-implementation ownership boundary approved by the project owner on 2026-11-01. No implementation. |
-| DPV-S2-002 | Commit A — Contracts | Pending explicit authorization and a GitHub planning record/owner. Define import and catalog contracts, failure/cancellation behavior, acceptance criteria, and a measurable performance profile. Public use-case contract and technology-neutral request/result types belong in Domain; no implementation. |
-| DPV-S2-003 | Commit B — Definitions / resolver | Define artist/collection/model/file-location semantics, scan identity, exact-hash duplicate/rescan behavior, and error classification. No implementation. |
-| DPV-S2-004 | Commit C — Evaluation / configuration | Define database/root configuration, validation, migration strategy, path policy, concurrency/batch limits, and logging/progress configuration. No implementation. |
-| DPV-S2-005 | Commit D — Implementation | Implement the import use case and its filesystem/persistence adapters in Infrastructure, with unit and real-SQLite tests, strictly against the approved Domain contract. No UI coupling or application-wide wiring/end-to-end integration in this phase. |
-| DPV-S2-006 | Commit E — Integration | Register the Domain contract to its Infrastructure implementation in App; connect folder selection, ViewModel consumption of the Domain contract, and database-backed list presentation. |
-| DPV-S2-007 | Commit F — Verification / validation | Run restore/build/tests on the supported CI platforms; verify import, reload-from-SQLite artifact, cancellation/error behavior, and agreed performance/resource thresholds. |
+| DPV-S2-002 | Commit A — Contracts | Complete — domain import request, result, and error contract. |
+| DPV-S2-003 | Commit B — Definitions / resolver | Complete — [Definition-011](../definitions/Definition-011-Scan-Identity.md). |
+| DPV-S2-004 | Commit C — Evaluation / configuration | Complete — `ScanningOptions` binds root, max file size, extensions, and batch limit, and invalid values fail host startup. |
+| DPV-S2-005 | Commit D — Implementation | Complete — filesystem scanner, SHA-256 identity, Dapper catalog, and real SQLite tests. |
+| DPV-S2-006 | Commit E — Integration | Complete — composition root registers the import service and catalog query from `ScanningOptions`; the dashboard selects a folder, imports, cancels, and lists SQLite models. |
+| DPV-S2-007 | Commit F — Verification / validation | Complete for the local Release build: `dotnet build DPV.sln -c Release` succeeded with 0 warnings, and the Release xUnit run reported 89 tests, 0 failures. GitHub-hosted Ubuntu/Windows CI still runs on pull request. |
 
 Each phase needs a named assignee/owner in its GitHub record and a reviewable
 phase artifact. Follow DEVELOPMENT_STANDARD.md's implementation, verification,
@@ -89,14 +92,13 @@ must be approved before Commit A.
 
 # Deferred Features
 
-These remain outside the walking-skeleton implementation. Exact duplicate
-detection remains an approved MVP capability from `REA-001-REVIEW.md`, but is
-scheduled as a separate feature after its own REA/contract gates:
+These remain outside the walking-skeleton implementation. Exact SHA-256
+duplicate review is now in `DPV-S3-003`; geometry similarity is still deferred:
 
 - Search behavior beyond the minimal model list.
 - Interactive 3D rendering and renderer/package selection.
-- Thumbnail generation.
-- Geometry similarity and destructive duplicate resolution.
+- Thumbnail generation beyond the isometric wireframe cache.
+- Geometry similarity.
 - Print history, analytics, cloud synchronization, and multi-user access.
 
 Existing deferred research placeholders remain:

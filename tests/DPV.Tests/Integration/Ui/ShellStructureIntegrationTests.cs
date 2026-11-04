@@ -71,5 +71,29 @@ public class ShellStructureIntegrationTests
             dashboardView.Descendants(),
             element => element.Name.LocalName == "TextBlock"
                 && (string?)element.Attribute("Text") == "{Binding Description}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Command") == "{Binding ImportCommand}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Command") == "{Binding CancelCommand}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "ProgressBar"
+                && (string?)element.Attribute("Value") == "{Binding ProgressPercentage}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "ListBox"
+                && (string?)element.Attribute("ItemsSource") == "{Binding Models}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "TextBox"
+                && (string?)element.Attribute("Text") == "{Binding SearchQuery}");
+        Assert.Contains(
+            dashboardView.Descendants(),
+            element => element.Name.LocalName == "ComboBox"
+                && (string?)element.Attribute(xamlNamespace + "Name") == "TagFilterBox");
     }
 }

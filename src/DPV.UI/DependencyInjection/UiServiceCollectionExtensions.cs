@@ -13,9 +13,10 @@ public static class UiServiceCollectionExtensions
     public static IServiceCollection AddDpvUi(this IServiceCollection services)
     {
         services.AddSingleton<App>();
-        services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<ShellViewModel>();
+        services.AddSingleton<DuplicatesViewModel>();
         services.AddTransient<DashboardView>();
+        services.AddTransient<DuplicatesView>();
         services.AddSingleton<MainWindow>();
         services.AddSingleton<IUiFoundationMarker, UiFoundationMarker>();
         return services;

@@ -78,7 +78,7 @@ public class SqliteBootstrapIntegrationTests
                     (long)MigrationRunner.CurrentSchemaVersion,
                     await ExecuteScalarAsync(connection, "PRAGMA user_version;"));
                 Assert.Equal(
-                    1L,
+                    6L,
                     await ExecuteScalarAsync(connection, "SELECT COUNT(*) FROM DPVSchemaMigrations;"));
 
                 await secondHost.StopAsync(TestContext.Current.CancellationToken);
