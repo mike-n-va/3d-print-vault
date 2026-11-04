@@ -1,23 +1,24 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DPV.UI;
 
 public partial class App : Application
 {
-    private readonly MainWindow _mainWindow;
+    private readonly IServiceProvider? _serviceProvider;
 
-    public App(MainWindow mainWindow)
+    public App(IServiceProvider serviceProvider)
     {
-        _mainWindow = mainWindow;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
-    /// Avalonia designer entry point. Runtime startup uses DI via <see cref="DPV.App.Startup.AvaloniaApplicationStartup"/>.
+    /// Avalonia designer entry point.
     /// </summary>
     public App()
-        : this(new MainWindow())
     {
     }
 
@@ -30,7 +31,10 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = _mainWindow;
+            if (_serviceProvider is not null)
+            {
+                desktop.MainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -111,6 +111,76 @@ public class DashboardNavigationTests
         Assert.Contains("cancelled", viewModel.CurrentStatusText, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ShellViewModelInvokesDashboardLoadCatalogOnStartup()
+    {
+        var catalog = new RecordingCatalogQuery();
+        var dashboard = new DashboardViewModel(new RecordingImportService(), catalog);
+        _ = new ShellViewModel(dashboard);
+
+        var dispatcher = Avalonia.Threading.Dispatcher.UIThread;
+        if (!dispatcher.CheckAccess())
+        {
+            typeof(Avalonia.Threading.Dispatcher)
+                .GetField("_thread", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+                .SetValue(dispatcher, System.Threading.Thread.CurrentThread);
+        }
+
+        dispatcher.RunJobs(Avalonia.Threading.DispatcherPriority.Loaded);
+        Assert.Equal(1, catalog.CallCount);
+    }
+
+    [Fact]
+    public void DuplicatesViewModelSelectsFileAndRaisesSelectedFilesFirst()
+    {
+        var fileId = Guid.NewGuid();
+        var file = new DuplicateFileItem(fileId, fileId, @"C:\models\cube.stl", 100, DateTime.UtcNow, true, "cube");
+        var group = new DuplicateGroupDto("hash123", 100, 1, [file]);
+        var events = new List<string>();
+
+        var duplicates = new DuplicatesViewModel(new FakeDuplicateRepository());
+        duplicates.PropertyChanged += (_, e) => events.Add(e.PropertyName!);
+
+        duplicates.SelectedGroup = group;
+
+        Assert.Equal(file, duplicates.SelectedFile);
+        var filesIndex = events.IndexOf(nameof(DuplicatesViewModel.SelectedFiles));
+        var fileIndex = events.IndexOf(nameof(DuplicatesViewModel.SelectedFile));
+        Assert.True(filesIndex >= 0);
+        Assert.True(fileIndex >= 0);
+        Assert.True(filesIndex < fileIndex, "SelectedFiles notification must precede SelectedFile to prevent ListBox selection coercion.");
+    }
+
+    [Fact]
+    public void DuplicatesViewModelGuardsCommandsDuringBusyState()
+    {
+        var fileId = Guid.NewGuid();
+        var file = new DuplicateFileItem(fileId, fileId, @"C:\models\cube.stl", 100, DateTime.UtcNow, true, "cube");
+        var group = new DuplicateGroupDto("hash123", 100, 1, [file]);
+        var duplicates = new DuplicatesViewModel(new FakeDuplicateRepository());
+
+        duplicates.SelectedGroup = group;
+        Assert.True(duplicates.DeleteCommand.CanExecute(null));
+        Assert.True(duplicates.MergeCommand.CanExecute(null));
+        Assert.True(duplicates.IgnoreCommand.CanExecute(null));
+        Assert.True(duplicates.RefreshCommand.CanExecute(null));
+    }
+
+    private sealed class FakeDuplicateRepository : IDuplicateRepository
+    {
+        public Task<IReadOnlyCollection<DuplicateGroupDto>> GetDuplicateGroupsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyCollection<DuplicateGroupDto>>([]);
+
+        public Task ResolveDuplicateMergeAsync(Guid primaryFileId, IEnumerable<Guid> duplicateFileIdsToDeactivate, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task ResolveDuplicateIgnoreAsync(string contentHash, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task ResolveDuplicateDeleteAsync(Guid fileIdToDelete, string filePath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
     private static DashboardViewModel CreateDashboard() =>
         new(new RecordingImportService(), new StaticCatalogQuery());
 

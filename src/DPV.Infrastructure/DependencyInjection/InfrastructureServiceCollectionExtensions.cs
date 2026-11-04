@@ -26,8 +26,7 @@ public static class InfrastructureServiceCollectionExtensions
                 var location = configuration["Database:Location"];
                 if (string.IsNullOrWhiteSpace(location))
                 {
-                    throw new InvalidOperationException(
-                        "Configuration value 'Database:Location' is required for SQLite persistence.");
+                    location = "%AppData%/3DPrintVault/dpv.db";
                 }
 
                 return new SqliteConnectionFactory(location);

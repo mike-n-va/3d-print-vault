@@ -14,6 +14,7 @@ public static class UiServiceCollectionExtensions
     {
         services.AddSingleton<App>();
         services.AddSingleton<ShellViewModel>();
+        services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<DuplicatesViewModel>();
         services.AddSingleton<AnalyticsViewModel>();
         services.AddSingleton<SettingsViewModel>();

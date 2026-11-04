@@ -1,4 +1,5 @@
-﻿using DPV.App.DependencyInjection;
+using System.Runtime.InteropServices;
+using DPV.App.DependencyInjection;
 using DPV.App.Logging;
 using DPV.App.Startup;
 using DPV.Infrastructure.DependencyInjection;
@@ -13,7 +14,7 @@ namespace DPV.App;
 public static class Program
 {
     [STAThread]
-    public static async Task<int> Main(string[] args)
+    public static int Main(string[] args)
     {
         try
         {
@@ -22,7 +23,7 @@ public static class Program
 
             ValidateCompositionRoot(host.Services);
 
-            await host.StartAsync().ConfigureAwait(false);
+            host.StartAsync().GetAwaiter().GetResult();
 
             try
             {
@@ -30,12 +31,13 @@ public static class Program
             }
             finally
             {
-                await host.StopAsync().ConfigureAwait(false);
+                host.StopAsync().GetAwaiter().GetResult();
             }
         }
         catch (Exception exception)
         {
             Log.Fatal(exception, "Application terminated unexpectedly during startup.");
+            WriteCriticalStartupException(exception);
             return 1;
         }
         finally
@@ -43,6 +45,36 @@ public static class Program
             BootstrapLogging.CloseAndFlush();
         }
     }
+
+    private static void WriteCriticalStartupException(Exception exception)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows() && GetConsoleWindow() == IntPtr.Zero)
+            {
+                AllocConsole();
+            }
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine();
+            Console.WriteLine("[CRITICAL STARTUP EXCEPTION]");
+            Console.WriteLine(exception);
+            Console.ResetColor();
+            Console.WriteLine();
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey(intercept: true);
+        }
+        catch (Exception)
+        {
+            // A redirected or missing console cannot accept the exit prompt.
+        }
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern bool AllocConsole();
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
 
     private static void ValidateCompositionRoot(IServiceProvider services)
     {
@@ -52,3 +84,4 @@ public static class Program
         _ = services.GetRequiredService<ILoggerFactory>();
     }
 }
+

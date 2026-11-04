@@ -20,9 +20,9 @@ public class WindowsReleaseProfileTests
 
         Assert.Equal("WinExe", Property(appProject, "OutputType"));
         Assert.Equal("net10.0", Property(appProject, "TargetFramework"));
-        Assert.Equal("app.ico", Property(appProject, "ApplicationIcon"));
+        Assert.Equal(@"Assets\3DPrintVault.ico", Property(appProject, "ApplicationIcon"));
         Assert.Equal("true", Property(appProject, "BuiltInComInteropSupport"));
-        Assert.True(File.Exists(Path.Combine(TestRepository.Root, "src", "DPV.App", "app.ico")));
+        Assert.True(File.Exists(Path.Combine(TestRepository.Root, "src", "DPV.App", "Assets", "3DPrintVault.ico")));
 
         Assert.Equal("net10.0", Property(uiProject, "TargetFramework"));
         Assert.Null(Property(uiProject, "OutputType"));

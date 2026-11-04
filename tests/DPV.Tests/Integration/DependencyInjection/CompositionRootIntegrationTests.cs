@@ -103,7 +103,7 @@ public class CompositionRootIntegrationTests
     }
 
     [Fact]
-    public async Task MissingDatabaseLocationFailsDuringHostStartValidation()
+    public async Task EmptyDatabaseLocationUsesTheRoamingCatalog()
     {
         var builder = CreateIntegrationHostBuilder(new Dictionary<string, string?>
         {
@@ -112,12 +112,15 @@ public class CompositionRootIntegrationTests
         });
 
         using var host = builder.Build();
-        var exception = await Assert.ThrowsAnyAsync<Exception>(
-            () => host.StartAsync(TestContext.Current.CancellationToken));
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        var factory = host.Services.GetRequiredService<IDatabaseConnectionFactory>();
+        var expected = Path.GetFullPath(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "3DPrintVault",
+            "dpv.db"));
 
-        Assert.False(
-            string.IsNullOrWhiteSpace(exception.Message),
-            "A missing database location should fail during options validation on host start.");
+        Assert.Equal(expected, factory.DatabasePath);
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

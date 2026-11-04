@@ -8,5 +8,7 @@ public sealed class DatabaseOptions
 
     [Required]
     [MinLength(1)]
-    public string Location { get; set; } = string.Empty;
+    public const string DefaultLocation = "%AppData%/3DPrintVault/dpv.db";
+
+    public string Location { get; set; } = DefaultLocation;
 }

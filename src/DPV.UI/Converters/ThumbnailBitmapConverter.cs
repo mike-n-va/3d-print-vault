@@ -9,7 +9,11 @@ namespace DPV.UI.Converters;
 
 public sealed class ThumbnailBitmapConverter : IValueConverter
 {
-    private static readonly Dictionary<string, Bitmap> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxCacheSize = 128;
+    private static readonly object SyncRoot = new();
+    private static readonly LinkedList<string> LruList = new();
+    private static readonly Dictionary<string, (LinkedListNode<string> Node, Bitmap Bitmap)> Cache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -18,15 +22,40 @@ public sealed class ThumbnailBitmapConverter : IValueConverter
             return null;
         }
 
-        lock (Cache)
+        lock (SyncRoot)
         {
-            if (!Cache.TryGetValue(path, out var bitmap))
+            if (Cache.TryGetValue(path, out var entry))
             {
-                bitmap = new Bitmap(path);
-                Cache[path] = bitmap;
+                LruList.Remove(entry.Node);
+                LruList.AddFirst(entry.Node);
+                return entry.Bitmap;
             }
 
-            return bitmap;
+            try
+            {
+                var bitmap = new Bitmap(path);
+
+                if (Cache.Count >= MaxCacheSize)
+                {
+                    var oldest = LruList.Last;
+                    if (oldest is not null)
+                    {
+                        LruList.RemoveLast();
+                        if (Cache.Remove(oldest.Value, out var evicted))
+                        {
+                            evicted.Bitmap.Dispose();
+                        }
+                    }
+                }
+
+                var node = LruList.AddFirst(path);
+                Cache[path] = (node, bitmap);
+                return bitmap;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 

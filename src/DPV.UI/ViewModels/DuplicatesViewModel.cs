@@ -16,20 +16,21 @@ public sealed class DuplicatesViewModel : INotifyPropertyChanged
     private readonly IDuplicateRepository _duplicates;
     private DuplicateGroupDto? _selectedGroup;
     private DuplicateFileItem? _selectedFile;
+    private bool _isBusy;
     private string _statusText = "Duplicate groups are exact SHA-256 matches.";
 
     public DuplicatesViewModel(IDuplicateRepository duplicates)
     {
         _duplicates = duplicates;
         Groups = new ObservableCollection<DuplicateGroupDto>();
-        RefreshCommand = new RelayCommand(() => _ = LoadAsync());
+        RefreshCommand = new RelayCommand(() => _ = LoadAsync(), () => !IsBusy);
         MergeCommand = new RelayCommand(
             () => _ = MergeAsync(),
-            () => SelectedGroup is not null && SelectedFile is not null);
-        IgnoreCommand = new RelayCommand(() => _ = IgnoreAsync(), () => SelectedGroup is not null);
+            () => !IsBusy && SelectedGroup is not null && SelectedFile is not null);
+        IgnoreCommand = new RelayCommand(() => _ = IgnoreAsync(), () => !IsBusy && SelectedGroup is not null);
         DeleteCommand = new RelayCommand(
             () => _ = DeleteAsync(),
-            () => SelectedGroup is not null && SelectedFile is not null);
+            () => !IsBusy && SelectedGroup is not null && SelectedFile is not null);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -39,6 +40,18 @@ public sealed class DuplicatesViewModel : INotifyPropertyChanged
     public ObservableCollection<DuplicateGroupDto> Groups { get; }
 
     public IReadOnlyList<DuplicateFileItem> SelectedFiles => SelectedGroup?.Files.ToList() ?? [];
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetField(ref _isBusy, value))
+            {
+                RaiseCommands();
+            }
+        }
+    }
 
     public string StatusText
     {
@@ -56,8 +69,8 @@ public sealed class DuplicatesViewModel : INotifyPropertyChanged
                 return;
             }
 
-            SelectedFile = value?.Files.FirstOrDefault();
             OnPropertyChanged(nameof(SelectedFiles));
+            SelectedFile = value?.Files.FirstOrDefault();
             RaiseCommands();
         }
     }
@@ -84,6 +97,28 @@ public sealed class DuplicatesViewModel : INotifyPropertyChanged
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            await LoadAsyncCore(cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task LoadAsyncCore(CancellationToken cancellationToken = default)
+    {
         var selectedHash = SelectedGroup?.ContentHash;
         var groups = await _duplicates.GetDuplicateGroupsAsync(cancellationToken).ConfigureAwait(true);
         Groups.Clear();
@@ -102,68 +137,88 @@ public sealed class DuplicatesViewModel : INotifyPropertyChanged
 
     private async Task MergeAsync()
     {
-        if (SelectedGroup is null || SelectedFile is null)
+        if (IsBusy || SelectedGroup is null || SelectedFile is null)
         {
             return;
         }
 
         try
         {
+            IsBusy = true;
             var redundant = SelectedGroup.Files
                 .Select(file => file.FileId)
                 .Where(fileId => fileId != SelectedFile.FileId);
             await _duplicates.ResolveDuplicateMergeAsync(SelectedFile.FileId, redundant)
                 .ConfigureAwait(true);
             StatusText = "Kept the selected file and marked the other copies inactive.";
-            await LoadAsync().ConfigureAwait(true);
+            await LoadAsyncCore().ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
     private async Task IgnoreAsync()
     {
-        if (SelectedGroup is null)
+        if (IsBusy || SelectedGroup is null)
         {
             return;
         }
 
         try
         {
+            IsBusy = true;
             await _duplicates.ResolveDuplicateIgnoreAsync(SelectedGroup.ContentHash).ConfigureAwait(true);
             StatusText = "Ignored this hash. The files stay in the library.";
-            await LoadAsync().ConfigureAwait(true);
+            await LoadAsyncCore().ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
     private async Task DeleteAsync()
     {
-        if (SelectedGroup is null || SelectedFile is null)
+        if (IsBusy || SelectedGroup is null || SelectedFile is null)
         {
             return;
         }
 
         try
         {
+            IsBusy = true;
             await _duplicates.ResolveDuplicateDeleteAsync(SelectedFile.FileId, SelectedFile.FilePath)
                 .ConfigureAwait(true);
             StatusText = "Deleted the selected file from disk and marked it inactive.";
-            await LoadAsync().ConfigureAwait(true);
+            await LoadAsyncCore().ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             StatusText = exception.Message;
         }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private void RaiseCommands()
     {
+        if (RefreshCommand is RelayCommand refresh)
+        {
+            refresh.RaiseCanExecuteChanged();
+        }
+
         if (MergeCommand is RelayCommand merge)
         {
             merge.RaiseCanExecuteChanged();

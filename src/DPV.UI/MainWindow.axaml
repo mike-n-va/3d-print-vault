@@ -95,19 +95,21 @@
 
         <Border x:Name="NavigationRegion"
                 Grid.Column="1"
-                Background="#F4F6F8"
-                Padding="32">
+                Background="{DynamicResource LayerFillColorAltBrush}"
+                Padding="24,20">
             <Grid RowDefinitions="Auto,*">
                 <TextBlock Text="Workspace"
-                           FontSize="24"
+                           FontSize="20"
                            FontWeight="SemiBold"
-                           Foreground="#17212B" />
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <Border x:Name="DashboardContentRegion"
                         Grid.Row="1"
-                        Margin="0,24,0,0"
-                        Background="White"
+                        Margin="0,16,0,0"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
                         CornerRadius="8"
-                        Padding="32">
+                        Padding="16">
                     <ContentControl Content="{Binding CurrentViewModel}" />
                 </Border>
             </Grid>

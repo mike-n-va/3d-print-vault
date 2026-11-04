@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using DPV.Domain.Contracts.Catalog;
+using Avalonia.Threading;
 
 namespace DPV.UI.ViewModels;
 
@@ -33,6 +34,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         ShowDuplicatesCommand = new DelegateCommand(ShowDuplicates);
         ShowAnalyticsCommand = new DelegateCommand(ShowAnalytics);
         ShowSettingsCommand = new DelegateCommand(() => CurrentViewModel = _settingsViewModel);
+        ScheduleInitialLoad(_dashboardViewModel);
     }
 
     public void ShowDuplicates()
@@ -45,6 +47,22 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     {
         CurrentViewModel = _analyticsViewModel;
         _ = _analyticsViewModel.LoadAsync();
+    }
+
+
+    private static void ScheduleInitialLoad(DashboardViewModel dashboard)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                await dashboard.LoadCatalogAsync().ConfigureAwait(true);
+            }
+            catch
+            {
+                // Initial catalog query failures are reported via dashboard status
+            }
+        }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -75,8 +93,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private sealed class DelegateCommand(Action execute) : ICommand
+    private sealed class DelegateCommand : ICommand
     {
+        private readonly Action _execute;
+
+        public DelegateCommand(Action execute)
+        {
+            _execute = execute;
+        }
+
         public event EventHandler? CanExecuteChanged
         {
             add { }
@@ -85,7 +110,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
         public bool CanExecute(object? parameter) => true;
 
-        public void Execute(object? parameter) => execute();
+        public void Execute(object? parameter) => _execute();
     }
 
     private sealed class EmptyDuplicateRepository : IDuplicateRepository

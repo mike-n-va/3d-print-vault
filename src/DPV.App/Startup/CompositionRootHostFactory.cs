@@ -12,8 +12,11 @@ public static class CompositionRootHostFactory
     {
         BootstrapLogging.Initialize();
 
-        var builder = Host.CreateApplicationBuilder(args);
-        builder.Environment.ContentRootPath = AppContext.BaseDirectory;
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = ResolveContentRoot()
+        });
 
         builder.Services.Configure<ServiceProviderOptions>(options =>
         {
@@ -29,5 +32,23 @@ public static class CompositionRootHostFactory
         DependencyInjectionOrchestrator.RegisterApplicationModules(builder.Services, builder.Configuration);
 
         return builder;
+    }
+
+    internal static string ResolveContentRoot()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDirectory, "appsettings.json")))
+        {
+            return baseDirectory;
+        }
+
+        var processDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+        if (!string.IsNullOrWhiteSpace(processDirectory)
+            && File.Exists(Path.Combine(processDirectory, "appsettings.json")))
+        {
+            return processDirectory;
+        }
+
+        return baseDirectory;
     }
 }

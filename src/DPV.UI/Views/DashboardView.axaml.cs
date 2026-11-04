@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -10,6 +11,23 @@ public partial class DashboardView : UserControl
     public DashboardView()
     {
         InitializeComponent();
+        AttachSplitterCursor();
+    }
+
+    private void AttachSplitterCursor()
+    {
+        try
+        {
+            var splitter = this.FindControl<GridSplitter>("CatalogGridSplitter");
+            if (splitter is not null)
+            {
+                splitter.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeWestEast);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Suppressed in headless testing environments where ICursorFactory is uninitialized
+        }
     }
 
     private async void BrowseFolderClick(object? sender, RoutedEventArgs e)
