@@ -16,9 +16,11 @@ public static class UiServiceCollectionExtensions
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<DuplicatesViewModel>();
         services.AddSingleton<AnalyticsViewModel>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddTransient<DashboardView>();
         services.AddTransient<DuplicatesView>();
         services.AddTransient<AnalyticsView>();
+        services.AddTransient<SettingsView>();
         services.AddSingleton<MainWindow>();
         services.AddSingleton<IUiFoundationMarker, UiFoundationMarker>();
         return services;

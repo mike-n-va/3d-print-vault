@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.SettingsView"
+             x:DataType="viewModels:SettingsViewModel">
+    <StackPanel Spacing="12">
+        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding StatusText}" Foreground="#5C6873" TextWrapping="Wrap" />
+        <TextBlock Text="Catalog export" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Export CSV" Click="ExportCsvClick" />
+            <Button Content="Export JSON" Click="ExportJsonClick" />
+        </StackPanel>
+        <TextBlock Text="Database maintenance" FontWeight="SemiBold" />
+        <TextBlock Text="Vacuum reclaims free pages. Backup and restore copy the catalog database. Restore replaces the current catalog."
+                   Foreground="#5C6873"
+                   TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Vacuum" Click="VacuumClick" />
+            <Button Content="Backup database" Click="BackupClick" />
+            <Button Content="Restore database" Click="RestoreClick" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

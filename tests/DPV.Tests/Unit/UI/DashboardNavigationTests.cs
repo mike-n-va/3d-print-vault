@@ -39,6 +39,8 @@ public class DashboardNavigationTests
         Assert.IsType<DuplicatesViewModel>(shell.CurrentViewModel);
         shell.ShowAnalyticsCommand.Execute(null);
         Assert.IsType<AnalyticsViewModel>(shell.CurrentViewModel);
+        shell.ShowSettingsCommand.Execute(null);
+        Assert.IsType<SettingsViewModel>(shell.CurrentViewModel);
         shell.ShowDashboardCommand.Execute(null);
         Assert.Same(dashboard, shell.CurrentViewModel);
     }

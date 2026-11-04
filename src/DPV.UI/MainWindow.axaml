@@ -25,6 +25,9 @@
         <DataTemplate DataType="{x:Type viewModels:AnalyticsViewModel}">
             <views:AnalyticsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
+            <views:SettingsView />
+        </DataTemplate>
     </Window.DataTemplates>
     <Grid ColumnDefinitions="248,*">
         <Border x:Name="SidebarRegion"
@@ -78,9 +81,14 @@
                     <Border Padding="12,10">
                         <TextBlock Text="Tags" Foreground="#D6DEE5" />
                     </Border>
-                    <Border Padding="12,10">
-                        <TextBlock Text="Settings" Foreground="#D6DEE5" />
-                    </Border>
+                    <Button x:Name="SettingsNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowSettingsCommand}">
+                        <TextBlock Text="Settings" FontWeight="SemiBold" />
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>
