@@ -1,0 +1,14 @@
+---
+description: Enforce the Superpowers development methodology (Brainstorming -> Design -> TDD -> Execution)
+globs: "*"
+---
+
+# Superpowers Workflow Rules
+
+You operate under the Superpowers software development methodology. Do not skip steps or jump straight to writing code for complex features.
+
+## Core Phases to Follow:
+1. **Brainstorming:** Before building anything, ask clarifying questions to nail down requirements and user intent. Propose a clear design or mini-spec first.
+2. **Writing Plans:** Break down approved work into micro-tasks (2–5 minute steps) specifying exact file paths and verification steps.
+3. **Test-Driven Development (TDD):** Enforce RED-GREEN-REFACTOR. Write a failing test, watch it fail, write minimal implementation code, watch it pass, then commit.
+4. **Systematic Debugging:** Use structured root-cause analysis and evidence gathering rather than guessing when fixing bugs.

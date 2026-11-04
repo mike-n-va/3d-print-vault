@@ -3,6 +3,7 @@ using DPV.App.Configuration;
 using DPV.Domain.Contracts.Import;
 using DPV.Infrastructure.Import;
 using DPV.Infrastructure.Persistence;
+using DPV.Infrastructure.Workers;
 using DPV.App.DependencyInjection;
 using DPV.App.Startup;
 using DPV.Infrastructure.DependencyInjection;
@@ -187,6 +188,9 @@ public class CompositionRootIntegrationTests
         Assert.IsType<DapperLibraryStatsRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.ILibraryStatsRepository>());
         Assert.IsType<CatalogExportService>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.ICatalogExportService>());
         Assert.IsType<SqliteDbMaintenanceService>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IDbMaintenanceService>());
+        Assert.IsType<BackgroundScanQueue>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>());
+        var worker = host.Services.GetRequiredService<ScanBackgroundWorker>();
+        Assert.Contains(host.Services.GetServices<IHostedService>(), service => ReferenceEquals(service, worker));
         Assert.IsType<SqliteConnectionFactory>(host.Services.GetRequiredService<IDatabaseConnectionFactory>());
         Assert.NotNull(host.Services.GetRequiredService<MigrationRunner>());
         Assert.NotNull(host.Services.GetRequiredService<SqliteCatalogStore>());

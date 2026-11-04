@@ -1,9 +1,11 @@
 using DPV.Domain.Contracts.Import;
 using DPV.Infrastructure.Import;
 using DPV.Infrastructure.Persistence;
+using DPV.Infrastructure.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DPV.Infrastructure.DependencyInjection;
 
@@ -41,12 +43,26 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<DPV.Domain.Contracts.Catalog.ICatalogExportService, CatalogExportService>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IDbMaintenanceService, SqliteDbMaintenanceService>();
         services.AddSingleton<IModelImportService, ModelImportService>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(_ => new BackgroundScanQueue());
+        services.AddSingleton(provider => new ScanBackgroundWorker(
+            provider.GetRequiredService<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(),
+            provider.GetRequiredService<IModelImportService>(),
+            provider.GetRequiredService<ILogger<ScanBackgroundWorker>>(),
+            ReadInt64(configuration, "Scanning:MaxFileSizeBytes", 2L * 1024 * 1024 * 1024),
+            ReadInt32(configuration, "Scanning:BatchLimit", 500)));
+        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<ScanBackgroundWorker>());
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<IHostedService>(
             provider => provider.GetRequiredService<DatabaseInitializer>());
 
         return services;
     }
+
+    private static long ReadInt64(IConfiguration configuration, string key, long fallback) =>
+        long.TryParse(configuration[key], out var value) ? value : fallback;
+
+    private static int ReadInt32(IConfiguration configuration, string key, int fallback) =>
+        int.TryParse(configuration[key], out var value) ? value : fallback;
 }
 
 internal sealed class InfrastructureFoundationMarker : IInfrastructureFoundationMarker;
