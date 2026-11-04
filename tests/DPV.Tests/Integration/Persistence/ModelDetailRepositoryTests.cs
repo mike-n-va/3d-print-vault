@@ -14,7 +14,7 @@ public class ModelDetailRepositoryTests : IDisposable
         var modelId = await InsertModelAsync("Bracket", "models/bracket.stl", "abc123hash", 1024);
         var repository = CreateRepository();
 
-        var detail = await repository.GetModelDetailAsync(modelId);
+        var detail = await repository.GetModelDetailAsync(modelId, TestContext.Current.CancellationToken);
 
         Assert.NotNull(detail);
         Assert.Equal(modelId, detail.Id);
@@ -37,16 +37,17 @@ public class ModelDetailRepositoryTests : IDisposable
             modelId,
             "  Artisan Guild  ",
             "Orc Horde",
-            [" minis ", "supported", "minis", "orc"]);
+            [" minis ", "supported", "minis", "orc"],
+            TestContext.Current.CancellationToken);
 
-        var detail = await repository.GetModelDetailAsync(modelId);
+        var detail = await repository.GetModelDetailAsync(modelId, TestContext.Current.CancellationToken);
         Assert.NotNull(detail);
         Assert.Equal("Artisan Guild", detail.ArtistName);
         Assert.Equal("Orc Horde", detail.CollectionName);
         Assert.Equal(["minis", "orc", "supported"], detail.Tags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
 
         var byTag = await new DapperCatalogQuery(new SqliteConnectionFactory(_databasePath), new MigrationRunner())
-            .SearchModelsAsync(new ModelQueryParameters(TagFilter: "supported"));
+            .SearchModelsAsync(new ModelQueryParameters(TagFilter: "supported"), TestContext.Current.CancellationToken);
         Assert.Equal(modelId, Assert.Single(byTag).Id);
     }
 
@@ -57,12 +58,12 @@ public class ModelDetailRepositoryTests : IDisposable
         var second = await InsertModelAsync("Two", "two.stl", "hash-two", 200);
         var repository = CreateRepository();
 
-        await repository.UpdateModelMetadataAsync(first, "Shared Artist", "Shared Set", ["hero"]);
-        await repository.UpdateModelMetadataAsync(second, "Shared Artist", null, ["hero"]);
-        await repository.UpdateModelMetadataAsync(first, null, "Shared Set", []);
+        await repository.UpdateModelMetadataAsync(first, "Shared Artist", "Shared Set", ["hero"], TestContext.Current.CancellationToken);
+        await repository.UpdateModelMetadataAsync(second, "Shared Artist", null, ["hero"], TestContext.Current.CancellationToken);
+        await repository.UpdateModelMetadataAsync(first, null, "Shared Set", [], TestContext.Current.CancellationToken);
 
-        var cleared = await repository.GetModelDetailAsync(first);
-        var reused = await repository.GetModelDetailAsync(second);
+        var cleared = await repository.GetModelDetailAsync(first, TestContext.Current.CancellationToken);
+        var reused = await repository.GetModelDetailAsync(second, TestContext.Current.CancellationToken);
         Assert.NotNull(cleared);
         Assert.NotNull(reused);
         Assert.Null(cleared.ArtistName);
@@ -72,16 +73,16 @@ public class ModelDetailRepositoryTests : IDisposable
         Assert.Null(reused.CollectionName);
 
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM Artists;";
-        Assert.Equal(1L, Convert.ToInt64(await command.ExecuteScalarAsync()));
+        Assert.Equal(1L, Convert.ToInt64(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken)));
     }
 
     [Fact]
     public async Task GetModelDetailAsync_ReturnsNullWhenTheModelDoesNotExist()
     {
-        var detail = await CreateRepository().GetModelDetailAsync(Guid.NewGuid());
+        var detail = await CreateRepository().GetModelDetailAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         Assert.Null(detail);
     }
@@ -105,8 +106,8 @@ public class ModelDetailRepositoryTests : IDisposable
     {
         var modelId = Guid.NewGuid();
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
-        await new MigrationRunner().MigrateAsync(connection);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await new MigrationRunner().MigrateAsync(connection, TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO Models (Id, Name, ScanRoot, CreatedAt)
@@ -120,7 +121,7 @@ public class ModelDetailRepositoryTests : IDisposable
         command.Parameters.AddWithValue("$path", Path.Combine(Path.GetTempPath(), relativePath));
         command.Parameters.AddWithValue("$hash", hash);
         command.Parameters.AddWithValue("$size", size);
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         return modelId;
     }
 }

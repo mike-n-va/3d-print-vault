@@ -25,16 +25,16 @@ public class ThumbnailServiceTests : IDisposable
         var stlPath = WriteTriangle();
         var service = CreateService();
 
-        await service.EnsureThumbnailGeneratedAsync(hash, stlPath);
-        var path = await service.GetThumbnailPathAsync(hash);
+        await service.EnsureThumbnailGeneratedAsync(hash, stlPath, TestContext.Current.CancellationToken);
+        var path = await service.GetThumbnailPathAsync(hash, TestContext.Current.CancellationToken);
 
         Assert.NotNull(path);
         Assert.True(File.Exists(path));
         AssertPng(path);
         Assert.Equal("Cached", await StatusAsync(hash));
 
-        await service.EnsureThumbnailGeneratedAsync(hash, stlPath);
-        Assert.Equal(path, await service.GetThumbnailPathAsync(hash));
+        await service.EnsureThumbnailGeneratedAsync(hash, stlPath, TestContext.Current.CancellationToken);
+        Assert.Equal(path, await service.GetThumbnailPathAsync(hash, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -42,18 +42,18 @@ public class ThumbnailServiceTests : IDisposable
     {
         var hash = "sha256_thumb_failed";
         var stlPath = Path.Combine(_root, "corrupt.stl");
-        await File.WriteAllTextAsync(stlPath, "not an stl");
+        await File.WriteAllTextAsync(stlPath, "not an stl", TestContext.Current.CancellationToken);
         var service = CreateService();
 
-        await service.EnsureThumbnailGeneratedAsync(hash, stlPath);
-        var path = await service.GetThumbnailPathAsync(hash);
+        await service.EnsureThumbnailGeneratedAsync(hash, stlPath, TestContext.Current.CancellationToken);
+        var path = await service.GetThumbnailPathAsync(hash, TestContext.Current.CancellationToken);
 
         Assert.NotNull(path);
         Assert.EndsWith("_placeholder.png", path, StringComparison.OrdinalIgnoreCase);
         Assert.False(File.Exists(Path.Combine(_cacheDirectory, hash + ".png")));
         Assert.Equal("Failed", await StatusAsync(hash));
 
-        await service.EnsureThumbnailGeneratedAsync(hash, WriteTriangle());
+        await service.EnsureThumbnailGeneratedAsync(hash, WriteTriangle(), TestContext.Current.CancellationToken);
         Assert.Equal("Failed", await StatusAsync(hash));
     }
 
@@ -127,10 +127,10 @@ public class ThumbnailServiceTests : IDisposable
     private async Task<string> StatusAsync(string hash)
     {
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT CacheStatus FROM ThumbnailCache WHERE ContentHash = $hash";
         command.Parameters.AddWithValue("$hash", hash);
-        return Convert.ToString(await command.ExecuteScalarAsync()) ?? string.Empty;
+        return Convert.ToString(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken)) ?? string.Empty;
     }
 }

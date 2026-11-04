@@ -18,10 +18,10 @@ public class FtsSearchTests
         await library.ImportAsync();
         var query = library.CreateQuery();
 
-        var byName = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "BRACKET", ScanRoot: library.Root));
-        var byPath = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "creatures", ScanRoot: library.Root));
-        var bySubstring = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "rack", ScanRoot: library.Root));
-        var missing = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "dragon", ScanRoot: library.Root));
+        var byName = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "BRACKET", ScanRoot: library.Root), TestContext.Current.CancellationToken);
+        var byPath = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "creatures", ScanRoot: library.Root), TestContext.Current.CancellationToken);
+        var bySubstring = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "rack", ScanRoot: library.Root), TestContext.Current.CancellationToken);
+        var missing = await query.SearchModelsAsync(new ModelQueryParameters(SearchTerm: "dragon", ScanRoot: library.Root), TestContext.Current.CancellationToken);
 
         Assert.Equal("bracket", Assert.Single(byName).Name);
         Assert.Contains("creatures", Assert.Single(byPath).FilePath, StringComparison.OrdinalIgnoreCase);
@@ -38,10 +38,10 @@ public class FtsSearchTests
 
         var factory = new SqliteConnectionFactory(library.DatabasePath);
         await using var connection = factory.CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM Models_Fts WHERE Models_Fts MATCH '\"bracket\"';";
-        var count = Convert.ToInt64(await command.ExecuteScalarAsync());
+        var count = Convert.ToInt64(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(1L, count);
     }
@@ -55,8 +55,8 @@ public class FtsSearchTests
         await library.SetTagsAsync("miniature");
         var query = library.CreateQuery();
 
-        var matched = await query.SearchModelsAsync(new ModelQueryParameters(TagFilter: "miniature", ScanRoot: library.Root));
-        var unmatched = await query.SearchModelsAsync(new ModelQueryParameters(TagFilter: "vehicle", ScanRoot: library.Root));
+        var matched = await query.SearchModelsAsync(new ModelQueryParameters(TagFilter: "miniature", ScanRoot: library.Root), TestContext.Current.CancellationToken);
+        var unmatched = await query.SearchModelsAsync(new ModelQueryParameters(TagFilter: "vehicle", ScanRoot: library.Root), TestContext.Current.CancellationToken);
 
         Assert.Equal("bracket", Assert.Single(matched).Name);
         Assert.Empty(unmatched);
@@ -84,7 +84,7 @@ public class FtsSearchTests
                 new SqliteConnectionFactory(DatabasePath),
                 new MigrationRunner(),
                 new SqliteCatalogStore());
-            await service.ImportAsync(new ImportLibraryRequest(Root, 2L * 1024 * 1024 * 1024));
+            await service.ImportAsync(new ImportLibraryRequest(Root, 2L * 1024 * 1024 * 1024), TestContext.Current.CancellationToken);
         }
 
         public void WriteBinaryStl(string relativePath)
@@ -100,7 +100,7 @@ public class FtsSearchTests
         {
             var factory = new SqliteConnectionFactory(DatabasePath);
             await using var connection = factory.CreateConnection();
-            await connection.OpenAsync();
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
             await using var command = connection.CreateCommand();
             command.CommandText = """
                 DELETE FROM Models_Fts;
@@ -110,7 +110,7 @@ public class FtsSearchTests
                 INNER JOIN Models m ON m.Id = f.ModelId;
                 """;
             command.Parameters.AddWithValue("$tags", tags);
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         public void Dispose()

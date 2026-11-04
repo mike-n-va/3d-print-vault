@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.AnalyticsView"
+             x:DataType="viewModels:AnalyticsViewModel">
+    <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,16">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding StatusText}" Foreground="#5C6873" TextWrapping="Wrap" />
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+        <ScrollViewer>
+            <StackPanel Spacing="16">
+                <UniformGrid Columns="3" Rows="2">
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Models" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding TotalModels}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Active files" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding TotalFiles}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Disk use" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding DiskUsageText}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Artists" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding TotalArtists}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Collections" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding TotalCollections}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,12">
+                        <TextBlock Text="Tags" Foreground="#5C6873" />
+                        <TextBlock Text="{Binding TotalTags}" FontSize="22" FontWeight="SemiBold" />
+                    </StackPanel>
+                </UniformGrid>
+
+                <TextBlock Text="Top artists" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding TopArtists}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:AnalyticsViewModel+RankedCount">
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Name}" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Share}" Height="8" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Top collections" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding TopCollections}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:AnalyticsViewModel+RankedCount">
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Name}" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Share}" Height="8" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Tag distribution" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding TopTags}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:AnalyticsViewModel+RankedCount">
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Name}" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Share}" Height="8" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

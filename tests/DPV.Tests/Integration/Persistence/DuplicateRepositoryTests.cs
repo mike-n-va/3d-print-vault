@@ -24,7 +24,7 @@ public class DuplicateRepositoryTests : IDisposable
         var inactive = await InsertModelAsync("Old Bracket", "c\\bracket.stl", SharedHash, 2048);
         await SetInactiveAsync(inactive);
 
-        var groups = await CreateRepository().GetDuplicateGroupsAsync();
+        var groups = await CreateRepository().GetDuplicateGroupsAsync(TestContext.Current.CancellationToken);
 
         var group = Assert.Single(groups);
         Assert.Equal(SharedHash, group.ContentHash);
@@ -44,9 +44,9 @@ public class DuplicateRepositoryTests : IDisposable
         var secondary = await InsertModelAsync("Secondary", secondaryPath, SharedHash, 100, absolutePath: true);
         await AssignMetadataAsync(secondary, "Artisan Guild", "hero");
 
-        await CreateRepository().ResolveDuplicateMergeAsync(primary, [secondary]);
+        await CreateRepository().ResolveDuplicateMergeAsync(primary, [secondary], TestContext.Current.CancellationToken);
 
-        var groups = await CreateRepository().GetDuplicateGroupsAsync();
+        var groups = await CreateRepository().GetDuplicateGroupsAsync(TestContext.Current.CancellationToken);
         Assert.Empty(groups);
         Assert.True(File.Exists(primaryPath));
         Assert.True(File.Exists(secondaryPath));
@@ -71,9 +71,9 @@ public class DuplicateRepositoryTests : IDisposable
         var first = await InsertModelAsync("One", "one.stl", SharedHash, 100);
         var second = await InsertModelAsync("Two", "two.stl", SharedHash, 100);
 
-        await CreateRepository().ResolveDuplicateIgnoreAsync(SharedHash);
+        await CreateRepository().ResolveDuplicateIgnoreAsync(SharedHash, TestContext.Current.CancellationToken);
 
-        Assert.Empty(await CreateRepository().GetDuplicateGroupsAsync());
+        Assert.Empty(await CreateRepository().GetDuplicateGroupsAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, await CountActiveAsync(first));
         Assert.Equal(1, await CountActiveAsync(second));
     }
@@ -86,15 +86,15 @@ public class DuplicateRepositoryTests : IDisposable
         var keep = await InsertModelAsync("Keep", keepPath, SharedHash, 100, absolutePath: true);
         var drop = await InsertModelAsync("Drop", dropPath, SharedHash, 100, absolutePath: true);
 
-        await CreateRepository().ResolveDuplicateDeleteAsync(drop, dropPath);
+        await CreateRepository().ResolveDuplicateDeleteAsync(drop, dropPath, TestContext.Current.CancellationToken);
 
         Assert.False(File.Exists(dropPath));
         Assert.True(File.Exists(keepPath));
         Assert.Equal(0, await CountActiveAsync(drop));
         Assert.Equal(1, await CountActiveAsync(keep));
-        Assert.Empty(await CreateRepository().GetDuplicateGroupsAsync());
+        Assert.Empty(await CreateRepository().GetDuplicateGroupsAsync(TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            CreateRepository().ResolveDuplicateDeleteAsync(keep, keepPath));
+            CreateRepository().ResolveDuplicateDeleteAsync(keep, keepPath, TestContext.Current.CancellationToken));
         Assert.True(File.Exists(keepPath));
     }
 
@@ -108,7 +108,7 @@ public class DuplicateRepositoryTests : IDisposable
         var drop = await InsertModelAsync("Drop", dropPath, SharedHash, 100, absolutePath: true);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            CreateRepository().ResolveDuplicateDeleteAsync(drop, otherPath));
+            CreateRepository().ResolveDuplicateDeleteAsync(drop, otherPath, TestContext.Current.CancellationToken));
 
         Assert.True(File.Exists(dropPath));
         Assert.True(File.Exists(otherPath));
@@ -144,8 +144,8 @@ public class DuplicateRepositoryTests : IDisposable
         var modelId = Guid.NewGuid();
         var storedPath = absolutePath ? path : Path.Combine(_root, path);
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
-        await new MigrationRunner().MigrateAsync(connection);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await new MigrationRunner().MigrateAsync(connection, TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO Models (Id, Name, ScanRoot, CreatedAt)
@@ -159,14 +159,14 @@ public class DuplicateRepositoryTests : IDisposable
         command.Parameters.AddWithValue("$path", storedPath);
         command.Parameters.AddWithValue("$hash", hash);
         command.Parameters.AddWithValue("$size", size);
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         return modelId;
     }
 
     private async Task AssignMetadataAsync(Guid modelId, string artist, string tag)
     {
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO Artists (Id, Name) VALUES ($artistId, $artist);
@@ -179,17 +179,17 @@ public class DuplicateRepositoryTests : IDisposable
         command.Parameters.AddWithValue("$tagId", Guid.NewGuid().ToString("D"));
         command.Parameters.AddWithValue("$tag", tag);
         command.Parameters.AddWithValue("$modelId", modelId.ToString("D"));
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
     }
 
     private async Task SetInactiveAsync(Guid modelId)
     {
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "UPDATE ModelFiles SET IsActive = 0 WHERE ModelId = $id";
         command.Parameters.AddWithValue("$id", modelId.ToString("D"));
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
     }
 
     private async Task<long> CountActiveAsync(Guid modelId)
@@ -203,11 +203,11 @@ public class DuplicateRepositoryTests : IDisposable
     private async Task<string> ScalarAsync(string sql, Guid modelId)
     {
         await using var connection = new SqliteConnectionFactory(_databasePath).CreateConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("$id", modelId.ToString("D"));
-        var value = await command.ExecuteScalarAsync();
+        var value = await command.ExecuteScalarAsync(TestContext.Current.CancellationToken);
         return Convert.ToString(value) ?? string.Empty;
     }
 }

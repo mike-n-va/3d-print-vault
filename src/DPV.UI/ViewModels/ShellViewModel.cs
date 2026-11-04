@@ -13,22 +13,34 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 {
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly DuplicatesViewModel _duplicatesViewModel;
+    private readonly AnalyticsViewModel _analyticsViewModel;
     private object _currentViewModel;
 
-    public ShellViewModel(DashboardViewModel dashboardViewModel, DuplicatesViewModel? duplicatesViewModel = null)
+    public ShellViewModel(
+        DashboardViewModel dashboardViewModel,
+        DuplicatesViewModel? duplicatesViewModel = null,
+        AnalyticsViewModel? analyticsViewModel = null)
     {
         _dashboardViewModel = dashboardViewModel;
         _duplicatesViewModel = duplicatesViewModel ?? new DuplicatesViewModel(new EmptyDuplicateRepository());
+        _analyticsViewModel = analyticsViewModel ?? new AnalyticsViewModel(new EmptyStatsRepository());
         _currentViewModel = dashboardViewModel;
         _dashboardViewModel.ShowDuplicates = ShowDuplicates;
         ShowDashboardCommand = new DelegateCommand(() => CurrentViewModel = _dashboardViewModel);
         ShowDuplicatesCommand = new DelegateCommand(ShowDuplicates);
+        ShowAnalyticsCommand = new DelegateCommand(ShowAnalytics);
     }
 
     public void ShowDuplicates()
     {
         CurrentViewModel = _duplicatesViewModel;
         _ = _duplicatesViewModel.LoadAsync();
+    }
+
+    public void ShowAnalytics()
+    {
+        CurrentViewModel = _analyticsViewModel;
+        _ = _analyticsViewModel.LoadAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -51,6 +63,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     public ICommand ShowDashboardCommand { get; }
 
     public ICommand ShowDuplicatesCommand { get; }
+
+    public ICommand ShowAnalyticsCommand { get; }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -84,5 +98,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
         public Task ResolveDuplicateDeleteAsync(Guid fileIdToDelete, string filePath, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class EmptyStatsRepository : ILibraryStatsRepository
+    {
+        public Task<LibraryStatsDto> GetLibraryStatsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new LibraryStatsDto(0, 0, 0, 0, 0, 0, [], [], []));
     }
 }

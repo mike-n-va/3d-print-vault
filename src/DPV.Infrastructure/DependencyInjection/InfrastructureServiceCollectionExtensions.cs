@@ -37,6 +37,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IModelDetailRepository, DapperModelDetailRepository>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IDuplicateRepository, DapperDuplicateRepository>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IThumbnailService, ThumbnailService>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.ILibraryStatsRepository, DapperLibraryStatsRepository>();
         services.AddSingleton<IModelImportService, ModelImportService>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<IHostedService>(

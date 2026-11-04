@@ -183,7 +183,7 @@ public class ModelImportPipelineTests
         {
             var factory = new SqliteConnectionFactory(DatabasePath);
             await using var connection = factory.CreateConnection();
-            await connection.OpenAsync();
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
             await using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT m.Id, f.NormalizedPath, f.ContentHash, f.IsActive

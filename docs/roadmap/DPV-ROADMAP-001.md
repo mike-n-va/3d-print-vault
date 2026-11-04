@@ -17,7 +17,7 @@ debounced dashboard search box. Sprint 3 `DPV-S3-002` adds schema version 4
 for artists, collections, and tags, plus a dashboard inspector that loads
 file metadata and saves those bindings. Sprint 3 `DPV-S3-003` lists exact
 SHA-256 duplicates and lets the user merge metadata, ignore a hash, or delete
-one selected file. Sprint 3 `DPV-S3-004` caches an isometric STL preview per content hash and shows it in the library list and inspector. The xUnit suite completed 109 tests, 0 failures, including
+one selected file. Sprint 3 `DPV-S3-004` caches an isometric STL preview per content hash and shows it in the library list and inspector. Sprint 4 `DPV-S4-001` adds a library analytics page with model, disk, artist, collection, and tag totals. The xUnit suite completed 111 tests, 0 failures, including
 architecture, import, rescan, search, inspector, duplicate, and dashboard
 checks. The section below titled "Sprint 1 Foundation — Closure Not Verified"
 is the historical audit record, not the current phase.

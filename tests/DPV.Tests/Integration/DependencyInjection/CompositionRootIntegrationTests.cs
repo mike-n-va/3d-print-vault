@@ -184,6 +184,7 @@ public class CompositionRootIntegrationTests
         Assert.IsType<DapperModelDetailRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IModelDetailRepository>());
         Assert.IsType<DapperDuplicateRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IDuplicateRepository>());
         Assert.IsType<ThumbnailService>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.IThumbnailService>());
+        Assert.IsType<DapperLibraryStatsRepository>(host.Services.GetRequiredService<DPV.Domain.Contracts.Catalog.ILibraryStatsRepository>());
         Assert.IsType<SqliteConnectionFactory>(host.Services.GetRequiredService<IDatabaseConnectionFactory>());
         Assert.NotNull(host.Services.GetRequiredService<MigrationRunner>());
         Assert.NotNull(host.Services.GetRequiredService<SqliteCatalogStore>());

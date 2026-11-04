@@ -37,6 +37,8 @@ public class DashboardNavigationTests
         dashboard.ShowDuplicatesCommand.Execute(null);
 
         Assert.IsType<DuplicatesViewModel>(shell.CurrentViewModel);
+        shell.ShowAnalyticsCommand.Execute(null);
+        Assert.IsType<AnalyticsViewModel>(shell.CurrentViewModel);
         shell.ShowDashboardCommand.Execute(null);
         Assert.Same(dashboard, shell.CurrentViewModel);
     }
@@ -83,7 +85,7 @@ public class DashboardNavigationTests
         viewModel.SearchQuery = "bracket";
 
         Assert.Equal(0, catalog.CallCount);
-        await Task.Delay(400);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Equal(1, catalog.CallCount);
         Assert.Equal("bracket", catalog.LastParameters!.SearchTerm);
         Assert.Equal(@"C:\library", catalog.LastParameters.ScanRoot);
