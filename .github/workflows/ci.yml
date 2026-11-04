@@ -26,4 +26,11 @@ jobs:
         run: dotnet build DPV.sln --configuration Release
 
       - name: Test
-        run: dotnet test DPV.sln --configuration Release --no-build
+        # The suite is an xUnit v3 executable. The solution test command reports zero tests for this project.
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ./tests/DPV.Tests/bin/Release/net10.0/DPV.Tests.exe -noColor
+          else
+            ./tests/DPV.Tests/bin/Release/net10.0/DPV.Tests -noColor
+          fi
