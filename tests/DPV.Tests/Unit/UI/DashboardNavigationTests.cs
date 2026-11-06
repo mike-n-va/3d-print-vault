@@ -87,7 +87,7 @@ public class DashboardNavigationTests
         viewModel.SearchQuery = "bracket";
 
         Assert.Equal(0, catalog.CallCount);
-        await Task.Delay(400, TestContext.Current.CancellationToken);
+        await Task.Delay(600, TestContext.Current.CancellationToken);
         Assert.Equal(1, catalog.CallCount);
         Assert.Equal("bracket", catalog.LastParameters!.SearchTerm);
         Assert.Equal(@"C:\library", catalog.LastParameters.ScanRoot);

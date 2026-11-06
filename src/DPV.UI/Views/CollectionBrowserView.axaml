@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.CollectionBrowserView"
+             x:DataType="viewModels:CollectionBrowserViewModel">
+    <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,16">
+            <TextBlock Text="Collections &amp; Sets" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="Browse your thematic bundles, releases, and curated model sets. Click a collection to filter."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <TextBox Grid.Column="0"
+                         PlaceholderText="Filter collections..."
+                         Text="{Binding SearchFilter}"
+                         Margin="0,0,8,0" />
+                <Button Grid.Column="1"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}" />
+            </Grid>
+        </StackPanel>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Collections}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="catalog:CollectionGroupDto">
+                        <Button Command="{Binding $parent[UserControl].((viewModels:CollectionBrowserViewModel)DataContext).SelectCollectionCommand}"
+                                CommandParameter="{Binding Name}"
+                                Margin="0,0,14,14"
+                                Padding="16,14"
+                                CornerRadius="8"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                Width="240">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Grid.Column="0"
+                                            Width="32"
+                                            Height="32"
+                                            CornerRadius="6"
+                                            Background="{DynamicResource AccentFillColorSecondaryBrush}">
+                                        <TextBlock Text="📦"
+                                                   FontSize="16"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                            CornerRadius="10"
+                                            Padding="6,2"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ModelCount, StringFormat={}{0} models}"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Name}"
+                                           FontWeight="SemiBold"
+                                           FontSize="15"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Description}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxLines="2"
+                                           IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

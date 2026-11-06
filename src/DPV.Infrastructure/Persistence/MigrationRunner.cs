@@ -5,7 +5,7 @@ namespace DPV.Infrastructure.Persistence;
 
 public sealed class MigrationRunner
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 9;
     private const string MigrationTableName = "DPVSchemaMigrations";
 
     public async Task MigrateAsync(
@@ -65,6 +65,24 @@ public sealed class MigrationRunner
         {
             await CreateThumbnailCacheAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
             await InsertVersionAsync(connection, transaction, 6, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (currentVersion < 7)
+        {
+            await MigrateToModelFilesV7Async(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await InsertVersionAsync(connection, transaction, 7, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (currentVersion < 8)
+        {
+            await MigrateToV8Async(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await InsertVersionAsync(connection, transaction, 8, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (currentVersion < 9)
+        {
+            await MigrateToV9Async(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await InsertVersionAsync(connection, transaction, 9, cancellationToken).ConfigureAwait(false);
         }
 
         await SetUserVersionAsync(connection, transaction, CurrentSchemaVersion, cancellationToken)
@@ -324,5 +342,135 @@ public sealed class MigrationRunner
             throw new InvalidOperationException(
                 $"Database schema version {CurrentSchemaVersion} has no matching migration record.");
         }
+    }
+
+    private static async Task MigrateToModelFilesV7Async(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            ALTER TABLE Models ADD COLUMN HeroPreviewPath TEXT;
+            ALTER TABLE Models ADD COLUMN ConfidenceScore REAL DEFAULT 1.0;
+
+            CREATE TABLE IF NOT EXISTS ModelFiles_V7 (
+                Id TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                ModelId TEXT NOT NULL,
+                NormalizedPath TEXT NOT NULL UNIQUE,
+                ContentHash TEXT NOT NULL,
+                FileSizeBytes INTEGER NOT NULL,
+                ModifiedAtUtc TEXT NOT NULL,
+                IsActive INTEGER NOT NULL CHECK (IsActive IN (0, 1)),
+                FileRole INTEGER NOT NULL DEFAULT 0,
+                ConfidenceScore REAL NOT NULL DEFAULT 1.0,
+                FOREIGN KEY (ModelId) REFERENCES Models(Id) ON DELETE CASCADE
+            );
+
+            INSERT OR IGNORE INTO ModelFiles_V7 (Id, ModelId, NormalizedPath, ContentHash, FileSizeBytes, ModifiedAtUtc, IsActive, FileRole, ConfidenceScore)
+            SELECT ModelId, ModelId, NormalizedPath, ContentHash, FileSizeBytes, ModifiedAtUtc, IsActive, 0, 1.0
+            FROM ModelFiles;
+
+            DROP TRIGGER IF EXISTS models_name_au;
+            DROP TRIGGER IF EXISTS model_files_ai;
+            DROP TRIGGER IF EXISTS model_files_ad;
+            DROP TRIGGER IF EXISTS model_files_au;
+
+            DROP TABLE ModelFiles;
+            ALTER TABLE ModelFiles_V7 RENAME TO ModelFiles;
+
+            CREATE INDEX IF NOT EXISTS IX_ModelFiles_ModelId ON ModelFiles(ModelId);
+            CREATE INDEX IF NOT EXISTS IX_ModelFiles_ContentHash ON ModelFiles(ContentHash);
+            CREATE INDEX IF NOT EXISTS IX_ModelFiles_ActiveContentHash ON ModelFiles(ContentHash) WHERE IsActive = 1;
+
+            CREATE TRIGGER IF NOT EXISTS model_files_ai AFTER INSERT ON ModelFiles BEGIN
+                INSERT INTO Models_Fts(rowid, model_id, name, file_path, tags)
+                SELECT new.rowid, new.ModelId, COALESCE(m.Name, ''), new.NormalizedPath, ''
+                FROM Models m
+                WHERE m.Id = new.ModelId;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS model_files_ad AFTER DELETE ON ModelFiles BEGIN
+                DELETE FROM Models_Fts WHERE rowid = old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS model_files_au AFTER UPDATE ON ModelFiles BEGIN
+                DELETE FROM Models_Fts WHERE rowid = old.rowid;
+                INSERT INTO Models_Fts(rowid, model_id, name, file_path, tags)
+                SELECT new.rowid, new.ModelId, COALESCE(m.Name, ''), new.NormalizedPath, ''
+                FROM Models m
+                WHERE m.Id = new.ModelId;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS models_name_au AFTER UPDATE OF Name ON Models BEGIN
+                DELETE FROM Models_Fts
+                WHERE rowid IN (SELECT rowid FROM ModelFiles WHERE ModelId = new.Id);
+                INSERT INTO Models_Fts(rowid, model_id, name, file_path, tags)
+                SELECT f.rowid, f.ModelId, COALESCE(new.Name, ''), f.NormalizedPath, ''
+                FROM ModelFiles f
+                WHERE f.ModelId = new.Id;
+            END;
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task MigrateToV8Async(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            ALTER TABLE Models ADD COLUMN IsFavorite INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE Models ADD COLUMN Description TEXT;
+            ALTER TABLE Models ADD COLUMN PrintNotes TEXT;
+
+            CREATE INDEX IF NOT EXISTS IX_Models_IsFavorite ON Models(IsFavorite);
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task MigrateToV9Async(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS Releases (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                ArtistId TEXT REFERENCES Artists(Id),
+                CollectionId TEXT REFERENCES Collections(Id),
+                Description TEXT,
+                ReleaseDate TEXT,
+                CoverImagePath TEXT,
+                IsFavorite INTEGER NOT NULL DEFAULT 0,
+                CreatedAt TEXT NOT NULL,
+                UNIQUE(Name, ArtistId)
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_Releases_ArtistId ON Releases(ArtistId);
+            CREATE INDEX IF NOT EXISTS IX_Releases_IsFavorite ON Releases(IsFavorite);
+
+            ALTER TABLE Models ADD COLUMN ReleaseId TEXT REFERENCES Releases(Id);
+            CREATE INDEX IF NOT EXISTS IX_Models_ReleaseId ON Models(ReleaseId);
+
+            ALTER TABLE Artists ADD COLUMN IsFavorite INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS IX_Artists_IsFavorite ON Artists(IsFavorite);
+
+            ALTER TABLE Collections ADD COLUMN IsFavorite INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS IX_Collections_IsFavorite ON Collections(IsFavorite);
+
+            INSERT OR IGNORE INTO Releases (Id, Name, ArtistId, CollectionId, Description, CreatedAt)
+            SELECT c.Id, c.Name, (SELECT m.ArtistId FROM Models m WHERE m.CollectionId = c.Id AND m.ArtistId IS NOT NULL LIMIT 1), c.Id, c.Description, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            FROM Collections c;
+
+            UPDATE Models SET ReleaseId = CollectionId WHERE CollectionId IS NOT NULL AND ReleaseId IS NULL;
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

@@ -1,0 +1,254 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             xmlns:converters="using:DPV.UI.Converters"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.ArtistBrowserView"
+             x:DataType="viewModels:ArtistBrowserViewModel">
+    <UserControl.Resources>
+        <converters:InitialsConverter x:Key="InitialsConverter" />
+        <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
+        <converters:FavoriteIconConverter x:Key="FavoriteIconConverter" />
+        <converters:FavoriteBrushConverter x:Key="FavoriteBrushConverter" />
+    </UserControl.Resources>
+
+    <Panel>
+        <!-- MODE 1: Artists List Overview (when IsPortfolioMode == False) -->
+        <DockPanel LastChildFill="True" IsVisible="{Binding !IsPortfolioMode}">
+            <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,16">
+                <TextBlock Text="Artists &amp; Studios" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Text="Explore your 3D models grouped by creators and studios. Click an artist to view their portfolio and releases."
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                    <TextBox Grid.Column="0"
+                             PlaceholderText="Filter artists..."
+                             Text="{Binding SearchFilter}"
+                             Margin="0,0,8,0" />
+                    <Button Grid.Column="1"
+                            Content="Refresh"
+                            Command="{Binding RefreshCommand}" />
+                </Grid>
+            </StackPanel>
+
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Artists}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="catalog:ArtistGroupDto">
+                            <Button Command="{Binding $parent[UserControl].((viewModels:ArtistBrowserViewModel)DataContext).SelectArtistCommand}"
+                                    CommandParameter="{Binding}"
+                                    Margin="0,0,12,12"
+                                    Padding="16,14"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    Width="240">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                    <!-- Monogram Avatar Circle (S6-010) -->
+                                    <Border Grid.Column="0"
+                                            Width="44"
+                                            Height="44"
+                                            CornerRadius="22"
+                                            Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource InitialsConverter}}"
+                                                   Foreground="White"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <!-- Artist Name & Model Count -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                CornerRadius="10"
+                                                Padding="6,2"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding ModelCount, StringFormat={}{0} models}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- Favorite Button -->
+                                    <Button Grid.Column="2"
+                                            Padding="4"
+                                            Background="Transparent"
+                                            Command="{Binding $parent[UserControl].((viewModels:ArtistBrowserViewModel)DataContext).ToggleArtistFavoriteCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="Favorite Artist">
+                                        <TextBlock Text="{Binding IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                                   Foreground="{Binding IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                                   FontSize="13" />
+                                    </Button>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- MODE 2: Artist Portfolio View (S7-007, S7-008) -->
+        <DockPanel LastChildFill="True" IsVisible="{Binding IsPortfolioMode}">
+            <!-- Top Bar Navigation -->
+            <Border DockPanel.Dock="Top"
+                    Margin="0,0,0,16"
+                    Padding="0,0,0,12"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Button Grid.Column="0"
+                            Content="← All Artists"
+                            Command="{Binding BackToArtistsCommand}"
+                            Padding="12,6"
+                            FontWeight="SemiBold" />
+
+                    <Button Grid.Column="2"
+                            Content="Browse All Models →"
+                            Command="{Binding BrowseAllArtistModelsCommand}"
+                            Padding="12,6"
+                            Classes="accent"
+                            FontWeight="SemiBold" />
+                </Grid>
+            </Border>
+
+            <!-- Scrollable Portfolio Content -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="20">
+                    <!-- Artist Profile Header Banner -->
+                    <Border CornerRadius="12"
+                            Padding="24"
+                            Background="#17212B"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
+                            <!-- Monogram Avatar -->
+                            <Border Grid.Column="0"
+                                    Width="72"
+                                    Height="72"
+                                    CornerRadius="36"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                <TextBlock Text="{Binding SelectedArtist.Name, Converter={StaticResource InitialsConverter}}"
+                                           Foreground="White"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+
+                            <!-- Studio Details & Stats -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+                                <TextBlock Text="{Binding SelectedArtist.Name}"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="White" />
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <Border Background="#CC111827" CornerRadius="6" Padding="8,3">
+                                        <TextBlock Text="{Binding SelectedArtist.ModelCount, StringFormat='{}{0} Total Models'}"
+                                                   Foreground="#F3F4F6"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Background="#CC111827" CornerRadius="6" Padding="8,3">
+                                        <TextBlock Text="{Binding ArtistReleaseCount, StringFormat='{}{0} Releases / Sets'}"
+                                                   Foreground="#F3F4F6"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Favorite Toggle -->
+                            <Button Grid.Column="2"
+                                    Command="{Binding ToggleArtistFavoriteCommand}"
+                                    CommandParameter="{Binding SelectedArtist}"
+                                    Padding="10,6"
+                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding SelectedArtist.IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                               Foreground="{Binding SelectedArtist.IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                               FontSize="14" />
+                                    <TextBlock Text="Favorite Studio" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Releases / Campaigns Section Header -->
+                    <TextBlock Text="Releases &amp; Campaigns"
+                               FontSize="18"
+                               FontWeight="Bold" />
+
+                    <!-- Releases 16:9 Hero Cards Grid -->
+                    <ItemsControl ItemsSource="{Binding ArtistReleases}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="catalog:ReleaseSummaryDto">
+                                <Border Margin="0,0,16,16"
+                                        Width="300"
+                                        CornerRadius="10"
+                                        ClipToBounds="True"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1">
+                                    <Grid RowDefinitions="169,Auto">
+                                        <Button Grid.Row="0"
+                                                Padding="0"
+                                                Background="#1E232A"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                HorizontalContentAlignment="Stretch"
+                                                VerticalContentAlignment="Stretch"
+                                                Command="{Binding $parent[UserControl].((viewModels:ArtistBrowserViewModel)DataContext).SelectReleaseCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Panel>
+                                                <Image Source="{Binding CoverImagePath, Converter={StaticResource ThumbnailBitmapConverter}}"
+                                                       Stretch="UniformToFill"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                                <Border HorizontalAlignment="Left"
+                                                        VerticalAlignment="Top"
+                                                        Margin="8"
+                                                        Background="#CC111827"
+                                                        CornerRadius="6"
+                                                        Padding="6,3">
+                                                    <TextBlock Text="{Binding ModelCount, StringFormat='{}{0} Models'}"
+                                                               FontSize="10"
+                                                               FontWeight="Bold"
+                                                               Foreground="#F3F4F6" />
+                                                </Border>
+                                            </Panel>
+                                        </Button>
+
+                                        <Border Grid.Row="1" Padding="12,10">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="14"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Panel>
+</UserControl>

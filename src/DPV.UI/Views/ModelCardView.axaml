@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="using:DPV.UI.Converters"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.ModelCardView"
+             x:DataType="viewModels:ModelCardViewModel">
+    <UserControl.Resources>
+        <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
+        <converters:FavoriteIconConverter x:Key="FavoriteIconConverter" />
+        <converters:FavoriteBrushConverter x:Key="FavoriteBrushConverter" />
+        <converters:InitialsConverter x:Key="InitialsConverter" />
+    </UserControl.Resources>
+
+    <Border Width="240"
+            CornerRadius="10"
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            ClipToBounds="True">
+        <Grid RowDefinitions="Auto,Auto">
+            <!-- 1:1 Square Image Frame (230x230 MMF Standard) -->
+            <Button Grid.Row="0"
+                    Padding="0"
+                    Background="#18181B"
+                    CornerRadius="9,9,0,0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Command="{Binding SelectCommand}">
+                <Panel Width="238" Height="238" ClipToBounds="True">
+                    <!-- Thumbnail Image (ActiveImagePath dynamically switches between Thumbnail and Hover preview) -->
+                    <Image Source="{Binding ActiveImagePath, Converter={StaticResource ThumbnailBitmapConverter}}"
+                           Stretch="UniformToFill"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+
+                    <!-- Fallback if missing -->
+                    <TextBlock Text="3D"
+                               FontSize="32"
+                               FontWeight="Bold"
+                               Foreground="#52525B"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding ActiveImagePath, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+
+                    <!-- Top Left: Badges -->
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="4"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="8">
+                        <!-- Pre-Supported Badge -->
+                        <Border IsVisible="{Binding IsPreSupported}"
+                                Background="#D0064E3B"
+                                BorderBrush="#10B981"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="5,2">
+                            <TextBlock Text="Pre-Supported"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="#34D399" />
+                        </Border>
+
+                        <!-- Parts Count Pill -->
+                        <Border Background="#CC18181B"
+                                CornerRadius="4"
+                                Padding="5,2">
+                            <TextBlock Text="{Binding AssetCount, StringFormat='{}{0} Parts'}"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E4E4E7" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Top Right: Favorite Button -->
+                    <Button HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="8"
+                            Width="28"
+                            Height="28"
+                            Padding="0"
+                            Background="#B018181B"
+                            CornerRadius="14"
+                            BorderThickness="0"
+                            Command="{Binding ToggleFavoriteCommand}"
+                            ToolTip.Tip="Toggle Favorite">
+                        <TextBlock Text="{Binding IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                   Foreground="{Binding IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                   FontSize="13"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Button>
+                </Panel>
+            </Button>
+
+            <!-- Card Lower Metadata: No paths or hashes, clean titles -->
+            <Border Grid.Row="1" Padding="12,10" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <!-- Creator Monogram Avatar -->
+                    <Border Grid.Column="0"
+                            Width="28"
+                            Height="28"
+                            CornerRadius="14"
+                            Background="#27272A"
+                            BorderBrush="#3F3F46"
+                            BorderThickness="1"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding ArtistName, Converter={StaticResource InitialsConverter}}"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="#A1A1AA"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- Title and Artist -->
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Name}" />
+
+                        <TextBlock Text="{Binding ArtistName, FallbackValue='Unknown Creator'}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <!-- Release / Collection tag if present -->
+                        <Border IsVisible="{Binding ReleaseName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Background="#1E293B"
+                                CornerRadius="3"
+                                Padding="4,1"
+                                HorizontalAlignment="Left"
+                                Margin="0,2,0,0">
+                            <TextBlock Text="{Binding ReleaseName}"
+                                       FontSize="9"
+                                       Foreground="#93C5FD"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="150" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using DPV.Domain.Contracts.Catalog;
@@ -19,7 +24,10 @@ public sealed class DapperModelDetailRepository(
         var model = await connection.QuerySingleOrDefaultAsync<ModelDetailRow>(
             new CommandDefinition(
                 """
-                SELECT m.Id, m.Name, m.CreatedAt, a.Name AS ArtistName, c.Name AS CollectionName
+                SELECT m.Id, m.Name, m.CreatedAt, a.Name AS ArtistName, c.Name AS CollectionName,
+                       COALESCE(m.ConfidenceScore, 1.0) AS ConfidenceScore,
+                       COALESCE(m.IsFavorite, 0) AS IsFavorite,
+                       m.Description, m.PrintNotes
                 FROM Models m
                 LEFT JOIN Artists a ON a.Id = m.ArtistId
                 LEFT JOIN Collections c ON c.Id = m.CollectionId
@@ -55,6 +63,23 @@ public sealed class DapperModelDetailRepository(
                 new { Id = id },
                 cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();
 
+        var confidenceScore = model.ConfidenceScore > 0 ? model.ConfidenceScore : 1.0;
+        var tier = confidenceScore >= 0.80 ? "HighConfidence" : (confidenceScore >= 0.50 ? "NeedsReview" : "LowConfidence");
+        var method = confidenceScore >= 0.80 ? "Deterministic" : "Heuristic";
+        var evidence = new List<string>
+        {
+            $"Calculated Confidence: {confidenceScore:P0} ({tier})",
+            $"Associated Files: {files.Count} assets"
+        };
+        if (!string.IsNullOrWhiteSpace(model.ArtistName))
+        {
+            evidence.Add($"Inferred Artist: {model.ArtistName}");
+        }
+        if (!string.IsNullOrWhiteSpace(model.CollectionName))
+        {
+            evidence.Add($"Inferred Collection: {model.CollectionName}");
+        }
+
         return new ModelDetailDto(
             Guid.Parse(model.Id),
             model.Name,
@@ -67,7 +92,15 @@ public sealed class DapperModelDetailRepository(
                 file.FileHash,
                 ParseTimestamp(file.LastModified),
                 file.IsActive != 0)).ToList(),
-            ParseTimestamp(model.CreatedAt));
+            ParseTimestamp(model.CreatedAt),
+            confidenceScore,
+            tier,
+            method,
+            evidence,
+            null,
+            model.IsFavorite != 0,
+            model.Description,
+            model.PrintNotes);
     }
 
     public async Task UpdateModelMetadataAsync(
@@ -148,6 +181,40 @@ public sealed class DapperModelDetailRepository(
         transaction.Commit();
     }
 
+    public async Task ToggleFavoriteAsync(Guid modelId, CancellationToken cancellationToken = default)
+    {
+        var id = modelId.ToString("D");
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE Models
+                SET IsFavorite = CASE WHEN IsFavorite = 1 THEN 0 ELSE 1 END
+                WHERE Id = @Id;
+                """,
+                new { Id = id },
+                cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+
+    public async Task UpdateModelDescriptionAsync(
+        Guid modelId,
+        string? description,
+        string? printNotes,
+        CancellationToken cancellationToken = default)
+    {
+        var id = modelId.ToString("D");
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE Models
+                SET Description = @Description, PrintNotes = @PrintNotes
+                WHERE Id = @Id;
+                """,
+                new { Id = id, Description = description, PrintNotes = printNotes },
+                cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken)
     {
         var connection = connectionFactory.CreateConnection();
@@ -208,6 +275,14 @@ public sealed class DapperModelDetailRepository(
         public string? ArtistName { get; set; }
 
         public string? CollectionName { get; set; }
+
+        public double ConfidenceScore { get; set; } = 1.0;
+
+        public long IsFavorite { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? PrintNotes { get; set; }
     }
 
     private sealed class ModelFileRow

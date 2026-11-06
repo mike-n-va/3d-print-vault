@@ -22,6 +22,16 @@ public static class UiServiceCollectionExtensions
         services.AddTransient<DuplicatesView>();
         services.AddTransient<AnalyticsView>();
         services.AddTransient<SettingsView>();
+        services.AddTransient<ArtistBrowserView>();
+        services.AddTransient<CollectionBrowserView>();
+        services.AddTransient<TagBrowserView>();
+        services.AddTransient<ReleaseBrowserView>();
+        services.AddTransient<ReleaseDetailView>();
+        services.AddTransient<FavoritesView>();
+        services.AddTransient<MainDashboardViewModel>();
+        services.AddTransient<MainDashboardView>();
+        services.AddTransient<ModelCardView>();
+        services.AddTransient<ReleaseCardView>();
         services.AddSingleton<MainWindow>();
         services.AddSingleton<IUiFoundationMarker, UiFoundationMarker>();
         return services;

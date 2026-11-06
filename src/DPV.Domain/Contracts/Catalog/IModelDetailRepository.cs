@@ -14,7 +14,15 @@ public record ModelDetailDto(
     string? CollectionName,
     IReadOnlyCollection<string> Tags,
     IReadOnlyCollection<ModelFileDto> Files,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    double ConfidenceScore = 1.0,
+    string ConfidenceTier = "HighConfidence",
+    string DiscoveryMethod = "Deterministic",
+    IReadOnlyList<string>? DiscoveryEvidence = null,
+    string? Release = null,
+    bool IsFavorite = false,
+    string? Description = null,
+    string? PrintNotes = null);
 
 public interface IModelDetailRepository
 {
@@ -26,4 +34,8 @@ public interface IModelDetailRepository
         string? collectionName,
         IEnumerable<string> tags,
         CancellationToken cancellationToken = default);
+
+    Task ToggleFavoriteAsync(Guid modelId, CancellationToken cancellationToken = default);
+
+    Task UpdateModelDescriptionAsync(Guid modelId, string? description, string? printNotes, CancellationToken cancellationToken = default);
 }

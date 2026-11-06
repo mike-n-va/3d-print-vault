@@ -22,14 +22,35 @@ public static class DependencyInjectionOrchestrator
         services.AddSingleton(serviceProvider =>
         {
             var scanning = serviceProvider.GetRequiredService<IOptions<ScanningOptions>>().Value;
-            return new DashboardViewModel(
+            return new MainDashboardViewModel(
                 serviceProvider.GetRequiredService<IModelImportService>(),
                 serviceProvider.GetRequiredService<CatalogQuery>(),
                 scanning.MaxFileSizeBytes,
                 scanning.BatchLimit,
                 scanning.RootPath,
                 serviceProvider.GetRequiredService<IModelDetailRepository>(),
-                serviceProvider.GetRequiredService<IThumbnailService>());
+                serviceProvider.GetRequiredService<IThumbnailService>(),
+                serviceProvider.GetService<IUserPreferencesService>(),
+                serviceProvider.GetService<IModelGroupingQuery>(),
+                serviceProvider.GetService<IReleaseCatalogQuery>(),
+                serviceProvider.GetService<IReleaseDetailRepository>());
+        });
+        services.AddSingleton<DashboardViewModel>(serviceProvider =>
+            serviceProvider.GetRequiredService<MainDashboardViewModel>());
+        services.AddSingleton(serviceProvider =>
+        {
+            var dashboard = serviceProvider.GetRequiredService<MainDashboardViewModel>();
+            return new ShellViewModel(
+                dashboard,
+                serviceProvider.GetService<DuplicatesViewModel>(),
+                serviceProvider.GetService<AnalyticsViewModel>(),
+                serviceProvider.GetService<SettingsViewModel>(),
+                null,
+                null,
+                null,
+                serviceProvider.GetService<IModelGroupingQuery>(),
+                serviceProvider.GetService<IReleaseCatalogQuery>(),
+                serviceProvider.GetService<IReleaseDetailRepository>());
         });
     }
 }

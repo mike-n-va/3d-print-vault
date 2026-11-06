@@ -1,0 +1,205 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="using:DPV.UI.Converters"
+             xmlns:views="using:DPV.UI.Views"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             x:Class="DPV.UI.Views.MainDashboardView"
+             x:DataType="viewModels:MainDashboardViewModel">
+    <UserControl.Resources>
+        <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
+        <converters:FavoriteIconConverter x:Key="FavoriteIconConverter" />
+        <converters:FavoriteBrushConverter x:Key="FavoriteBrushConverter" />
+        <converters:EmptyCollectionToBoolConverter x:Key="EmptyCollectionToBoolConverter" />
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="*,Auto">
+        <!-- Main Catalog Surface -->
+        <DockPanel Grid.Column="0" LastChildFill="True">
+            <!-- Top Search & Curation Header -->
+            <StackPanel DockPanel.Dock="Top" Margin="24,20,24,12" Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="Model Sanctuary" FontSize="26" FontWeight="Bold" />
+                        <TextBlock Text="Explore your personal 3D printing collection with gallery-grade curation."
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <!-- Import Controls -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBox Width="260"
+                                 PlaceholderText="Vault storage path..."
+                                 Text="{Binding RootPath}"
+                                 VerticalAlignment="Center" />
+                        <Button Content="Scan Vault"
+                                Command="{Binding ImportCommand}"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                Foreground="White"
+                                FontWeight="SemiBold"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Search Bar & Filters -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0"
+                             PlaceholderText="Search models by name, creator, or thematic keywords..."
+                             Text="{Binding SearchQuery}"
+                             Margin="0,0,12,0" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Favorites Only"
+                                Command="{Binding ToggleOnlyFavoritesCommand}"
+                                Background="{Binding OnlyFavoritesFilter, Converter={StaticResource FavoriteBrushConverter}}" />
+                        <Button Content="Clear" Command="{Binding ClearSearchCommand}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Scanning Progress Bar -->
+                <ProgressBar Height="4"
+                             IsVisible="{Binding IsScanning}"
+                             Value="{Binding ProgressPercentage}"
+                             Maximum="100" />
+            </StackPanel>
+
+            <!-- Scrollable Multi-Section Gallery -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Padding="16,0,16,24">
+                <StackPanel Spacing="24">
+                    <!-- Section 1: Featured Campaigns & Releases (16:9 Widescreen) -->
+                    <StackPanel Spacing="12" IsVisible="{Binding FeaturedReleases.Count, Converter={StaticResource EmptyCollectionToBoolConverter}, ConverterParameter=invert}">
+                        <TextBlock Text="CAMPAIGNS &amp; RELEASES"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#9CA3AF"
+                                   LetterSpacing="1" />
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding FeaturedReleases}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:ReleaseCardViewModel">
+                                        <views:ReleaseCardView />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <!-- Section 2: Catalog Models (Strict 1:1 Square Cards in Adaptive WrapPanel) -->
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="ALL MODELS"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#9CA3AF"
+                                   LetterSpacing="1" />
+
+                        <!-- Adaptive WrapPanel: ItemWidth 260, ItemHeight 320 -->
+                        <ItemsControl ItemsSource="{Binding CatalogModels}"
+                                     IsVisible="{Binding CatalogModels.Count, Converter={StaticResource EmptyCollectionToBoolConverter}, ConverterParameter=invert}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" ItemWidth="260" ItemHeight="320" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:ModelCardViewModel">
+                                    <views:ModelCardView HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Empty State -->
+                        <Border IsVisible="{Binding CatalogModels.Count, Converter={StaticResource EmptyCollectionToBoolConverter}}"
+                                Padding="48"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                            <StackPanel Spacing="12" HorizontalAlignment="Center">
+                                <TextBlock Text="No models match your current filter."
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="Try clearing your search query or scanning a new 3D model vault folder."
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- Right Side Inspector Drawer (Isolated Technical Specifications) -->
+        <Border Grid.Column="1"
+                Width="340"
+                Background="#18181B"
+                BorderBrush="#27272A"
+                BorderThickness="1,0,0,0"
+                IsVisible="{Binding HasSelectedModel}">
+            <DockPanel LastChildFill="True">
+                <!-- Inspector Header -->
+                <Border DockPanel.Dock="Top" Padding="16" BorderBrush="#27272A" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Model Inspector" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Content="✕"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Command="{Binding ToggleLibraryDrawerCommand}" />
+                    </Grid>
+                </Border>
+
+                <!-- Inspector Content -->
+                <ScrollViewer Padding="16">
+                    <StackPanel Spacing="16">
+                        <!-- Preview Image -->
+                        <Border CornerRadius="8" ClipToBounds="True" Height="200" Background="#09090B">
+                            <Image Source="{Binding SelectedModel.ThumbnailPath, Converter={StaticResource ThumbnailBitmapConverter}}"
+                                   Stretch="UniformToFill" />
+                        </Border>
+
+                        <!-- Titles -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding SelectedModel.Name}" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SelectedModel.ArtistName, FallbackValue='Unknown Artist'}"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       FontSize="13" />
+                        </StackPanel>
+
+                        <!-- Technical Files Breakdown (Cleanly isolated inside drawer) -->
+                        <Expander Header="Constituent Files" IsExpanded="True">
+                            <ItemsControl ItemsSource="{Binding DetailedModel.Files}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="catalog:ModelFileDto">
+                                        <Border Padding="6,4" Margin="0,2" Background="#27272A" CornerRadius="4">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{Binding FilePath}" FontSize="11" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding FileHash}" FontSize="10" Foreground="#10B981" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+
+                        <!-- Physical Storage Properties (Isolated here, never on cards) -->
+                        <Expander Header="Filesystem Storage">
+                            <StackPanel Spacing="6" Margin="4">
+                                <TextBlock Text="Primary Disk Location:" FontSize="10" Foreground="#A1A1AA" />
+                                <TextBlock Text="{Binding SelectedModel.FilePath}"
+                                           FontSize="11"
+                                           FontFamily="Consolas, monospace"
+                                           TextWrapping="Wrap"
+                                           Foreground="#E4E4E7" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

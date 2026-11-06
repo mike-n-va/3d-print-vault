@@ -50,28 +50,20 @@ public static class Program
     {
         try
         {
-            if (OperatingSystem.IsWindows() && GetConsoleWindow() == IntPtr.Zero)
+            if (OperatingSystem.IsWindows() && GetConsoleWindow() != IntPtr.Zero)
             {
-                AllocConsole();
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine();
+                Console.WriteLine("[CRITICAL STARTUP EXCEPTION]");
+                Console.WriteLine(exception);
+                Console.ResetColor();
             }
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine();
-            Console.WriteLine("[CRITICAL STARTUP EXCEPTION]");
-            Console.WriteLine(exception);
-            Console.ResetColor();
-            Console.WriteLine();
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey(intercept: true);
         }
         catch (Exception)
         {
-            // A redirected or missing console cannot accept the exit prompt.
+            // A redirected or missing console cannot accept output.
         }
     }
-
-    [DllImport("kernel32.dll")]
-    private static extern bool AllocConsole();
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetConsoleWindow();
@@ -84,4 +76,3 @@ public static class Program
         _ = services.GetRequiredService<ILoggerFactory>();
     }
 }
-

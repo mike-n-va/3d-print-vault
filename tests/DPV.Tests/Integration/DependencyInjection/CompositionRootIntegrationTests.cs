@@ -230,6 +230,10 @@ public class CompositionRootIntegrationTests
     [Fact]
     public void DashboardIsRegisteredAndSelectedOnStartup()
     {
+        typeof(Avalonia.Threading.Dispatcher)
+            .GetField("_thread", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+            .SetValue(Avalonia.Threading.Dispatcher.UIThread, System.Threading.Thread.CurrentThread);
+
         var builder = CreateIntegrationHostBuilder(new Dictionary<string, string?>
         {
             ["Application:ApplicationName"] = "DPV Integration Test"

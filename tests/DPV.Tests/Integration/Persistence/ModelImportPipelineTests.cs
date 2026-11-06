@@ -140,6 +140,37 @@ public class ModelImportPipelineTests
         }
     }
 
+    [Fact]
+    public async Task ImportZipArchiveWithPrintableEntriesIsPersisted()
+    {
+        using var library = new TemporaryLibrary();
+        library.WriteZipArchive("dragon_kit.zip", ("dragon.stl", library.BinaryStl(triangleCount: 0)));
+        var service = library.CreateService();
+
+        var result = await service.ImportAsync(library.Request(), TestContext.Current.CancellationToken);
+        var rows = await library.ReadFilesAsync();
+
+        Assert.True(result.Completed);
+        Assert.Equal(1, result.TotalAdded);
+        Assert.Single(rows);
+        Assert.EndsWith("dragon_kit.zip", rows[0].NormalizedPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ImportZipArchiveWithoutPrintableEntriesIsSkipped()
+    {
+        using var library = new TemporaryLibrary();
+        library.WriteZipArchive("docs_only.zip", ("readme.txt", "instructions"u8.ToArray()));
+        var service = library.CreateService();
+
+        var result = await service.ImportAsync(library.Request(), TestContext.Current.CancellationToken);
+        var rows = await library.ReadFilesAsync();
+
+        Assert.True(result.Completed);
+        Assert.Equal(0, result.TotalAdded);
+        Assert.Empty(rows);
+    }
+
     private sealed class TemporaryLibrary : IDisposable
     {
         public TemporaryLibrary()
@@ -178,6 +209,20 @@ public class ModelImportPipelineTests
 
         public void WriteBytes(string name, byte[] content) =>
             File.WriteAllBytes(Path.Combine(Root, name), content);
+
+        public string WriteZipArchive(string name, params (string EntryName, byte[] Content)[] entries)
+        {
+            var path = Path.Combine(Root, name);
+            using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write);
+            using var archive = new System.IO.Compression.ZipArchive(fileStream, System.IO.Compression.ZipArchiveMode.Create);
+            foreach (var (entryName, content) in entries)
+            {
+                var entry = archive.CreateEntry(entryName);
+                using var entryStream = entry.Open();
+                entryStream.Write(content);
+            }
+            return path;
+        }
 
         public async Task<List<StoredFile>> ReadFilesAsync()
         {

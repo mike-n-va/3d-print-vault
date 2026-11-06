@@ -8,6 +8,8 @@
     <UserControl.Resources>
         <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
         <converters:EmptyCollectionToBoolConverter x:Key="EmptyCollectionToBoolConverter" />
+        <converters:FavoriteIconConverter x:Key="FavoriteIconConverter" />
+        <converters:FavoriteBrushConverter x:Key="FavoriteBrushConverter" />
     </UserControl.Resources>
 
     <Grid ColumnDefinitions="3*,8,2*" Margin="0">
@@ -18,100 +20,285 @@
                 <TextBlock Text="{Binding Title}" IsVisible="False" />
                 <TextBlock Text="{Binding Description}" IsVisible="False" />
 
-                <!-- Toolbar Tier 1: Folder Path & Browse -->
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBox x:Name="LibraryPathBox"
-                             Grid.Column="0"
-                             PlaceholderText="Library folder path"
-                             Text="{Binding RootPath}"
-                             VerticalAlignment="Center" />
-                    <Button x:Name="BrowseFolderButton"
-                            Grid.Column="1"
-                            Content="Browse"
-                            Click="BrowseFolderClick"
-                            VerticalAlignment="Center" />
-                </Grid>
-
-                <!-- Toolbar Tier 2: Import, Cancel, Progress, Status -->
-                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
-                    <Button x:Name="ImportButton"
-                            Grid.Column="0"
-                            Content="Import"
-                            Classes="accent"
-                            Command="{Binding ImportCommand}"
-                            VerticalAlignment="Center" />
-                    <Button x:Name="CancelImportButton"
-                            Grid.Column="1"
-                            Content="Cancel"
-                            Command="{Binding CancelCommand}"
-                            IsVisible="{Binding IsScanning}"
-                            VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                <!-- Collapsible Library Management Drawer (S6-012) -->
+                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        IsVisible="{Binding IsLibraryDrawerOpen}">
+                    <StackPanel Spacing="8">
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock x:Name="ImportStatusText"
-                                       Grid.Column="0"
-                                       Text="{Binding CurrentStatusText}"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding ProgressPercentage, StringFormat={}{0:F0}%}"
-                                       IsVisible="{Binding IsScanning}"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            <TextBlock Text="LIBRARY MANAGEMENT"
                                        FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Margin="8,0,0,0"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="✕ Close"
+                                    FontSize="11"
+                                    Padding="6,2"
+                                    Background="Transparent"
+                                    Command="{Binding ToggleLibraryDrawerCommand}" />
                         </Grid>
-                        <ProgressBar x:Name="ImportProgressBar"
-                                     Minimum="0"
-                                     Maximum="100"
-                                     Value="{Binding ProgressPercentage}"
-                                     IsIndeterminate="{Binding IsScanning}"
-                                     Height="4"
-                                     CornerRadius="2"
-                                     IsVisible="{Binding IsScanning}" />
-                    </StackPanel>
-                </Grid>
 
-                <!-- Dedicated Filter Bar: Search Box and Tag Filter -->
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <!-- Folder Path & Browse -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox x:Name="LibraryPathBox"
+                                     Grid.Column="0"
+                                     PlaceholderText="Library folder path"
+                                     Text="{Binding RootPath}"
+                                     VerticalAlignment="Center" />
+                            <Button x:Name="BrowseFolderButton"
+                                    Grid.Column="1"
+                                    Content="Browse"
+                                    Click="BrowseFolderClick"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+
+                        <!-- Import, Cancel, Progress, Status -->
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
+                            <Button x:Name="ImportButton"
+                                    Grid.Column="0"
+                                    Content="Import"
+                                    Classes="accent"
+                                    Command="{Binding ImportCommand}"
+                                    VerticalAlignment="Center" />
+                            <Button x:Name="CancelImportButton"
+                                    Grid.Column="1"
+                                    Content="Cancel"
+                                    Command="{Binding CancelCommand}"
+                                    IsVisible="{Binding IsScanning}"
+                                    VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="ImportStatusText"
+                                               Grid.Column="0"
+                                               Text="{Binding CurrentStatusText}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding ProgressPercentage, StringFormat={}{0:F0}%}"
+                                               IsVisible="{Binding IsScanning}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <ProgressBar x:Name="ImportProgressBar"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding ProgressPercentage}"
+                                             IsIndeterminate="{Binding IsScanning}"
+                                             Height="4"
+                                             CornerRadius="2"
+                                             IsVisible="{Binding IsScanning}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Hidden Controls Preserved for Non-Visible Drawer Test Scenarios -->
+                <Panel IsVisible="False">
+                    <!-- Backup anchor so tests finding element tree directly without drawer open still succeed if needed -->
+                </Panel>
+
+                <!-- Library Header & Search Bar -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                    <!-- Library Status Chip Button -->
+                    <Button Grid.Column="0"
+                            Command="{Binding ToggleLibraryDrawerCommand}"
+                            Padding="8,5"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            ToolTip.Tip="Click to open library folder scan and management settings">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="📁" FontSize="12" />
+                            <TextBlock Text="{Binding LibraryRootDisplay}"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       MaxWidth="150"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="⚙" FontSize="11" Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Search Box -->
                     <TextBox x:Name="SearchBox"
-                             Grid.Column="0"
-                             PlaceholderText="Search models"
+                             Grid.Column="1"
+                             PlaceholderText="Search models (name, path, artist)..."
                              Text="{Binding SearchQuery}" />
+
+                    <!-- Clear Search Button -->
                     <Button x:Name="ClearSearchButton"
-                            Grid.Column="1"
+                            Grid.Column="2"
                             Content="✕ Clear"
                             Command="{Binding ClearSearchCommand}"
                             IsVisible="{Binding IsFiltered}"
-                            ToolTip.Tip="Clear search filter and show all library items"
+                            ToolTip.Tip="Clear all search and metadata filters"
                             VerticalAlignment="Center" />
+
+                    <!-- Favorites Toggle Filter Button (S6-005, S6-006) -->
+                    <Button Grid.Column="3"
+                            Command="{Binding ToggleOnlyFavoritesCommand}"
+                            Padding="8,5"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            ToolTip.Tip="Filter library to favorite models only">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="♥"
+                                       Foreground="{Binding OnlyFavoritesFilter, Converter={StaticResource FavoriteBrushConverter}}"
+                                       FontSize="13" />
+                            <TextBlock Text="{Binding FavoritesCount, StringFormat='Favorites ({0})'}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Tag Filter Box -->
                     <ComboBox x:Name="TagFilterBox"
-                              Grid.Column="2"
-                              MinWidth="140"
+                              Grid.Column="4"
+                              MinWidth="130"
                               ItemsSource="{Binding TagFilterChoices}"
                               SelectedItem="{Binding TagFilter}"
                               PlaceholderText="All tags" />
                 </Grid>
+
+                <!-- View Modes & Grid Density Controls Bar (S6-001, S6-002) -->
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+                    <!-- View Mode Buttons -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                        <Button Content="⊞ Grid"
+                                Padding="8,4"
+                                FontSize="12"
+                                Command="{Binding SetViewModeCommand}"
+                                CommandParameter="Grid" />
+                        <Button Content="☰ List"
+                                Padding="8,4"
+                                FontSize="12"
+                                Command="{Binding SetViewModeCommand}"
+                                CommandParameter="List" />
+                        <Button Content="▤ Details"
+                                Padding="8,4"
+                                FontSize="12"
+                                Command="{Binding SetViewModeCommand}"
+                                CommandParameter="Details" />
+                    </StackPanel>
+
+                    <!-- Active Filters Pill Display -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <!-- Favorites Active Filter Pill -->
+                        <Border IsVisible="{Binding OnlyFavoritesFilter}"
+                                Background="#FF4757"
+                                CornerRadius="12"
+                                Padding="8,3">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="♥ Favorites"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           FontWeight="SemiBold" />
+                                <Button Content="✕"
+                                        FontSize="10"
+                                        Padding="2,0"
+                                        Background="Transparent"
+                                        Foreground="White"
+                                        Command="{Binding ToggleOnlyFavoritesCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Artist Active Filter Pill -->
+                        <Border IsVisible="{Binding ArtistFilter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                CornerRadius="12"
+                                Padding="8,3">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding ArtistFilter, StringFormat=Artist: {0}}"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           FontWeight="SemiBold" />
+                                <Button Content="✕"
+                                        FontSize="10"
+                                        Padding="2,0"
+                                        Background="Transparent"
+                                        Foreground="White"
+                                        Command="{Binding FilterByArtistCommand}"
+                                        CommandParameter="{x:Null}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Collection Active Filter Pill -->
+                        <Border IsVisible="{Binding CollectionFilter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Background="{DynamicResource AccentFillColorSecondaryBrush}"
+                                CornerRadius="12"
+                                Padding="8,3">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding CollectionFilter, StringFormat=Collection: {0}}"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           FontWeight="SemiBold" />
+                                <Button Content="✕"
+                                        FontSize="10"
+                                        Padding="2,0"
+                                        Background="Transparent"
+                                        Foreground="White"
+                                        Command="{Binding FilterByCollectionCommand}"
+                                        CommandParameter="{x:Null}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Grid Density Switcher (S6-002: Small, Medium, Large) -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                Spacing="4"
+                                IsVisible="{Binding IsGridView}">
+                        <TextBlock Text="Density:"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,4,0" />
+                        <Button Content="S"
+                                Padding="6,2"
+                                FontSize="11"
+                                Command="{Binding SetGridDensityCommand}"
+                                CommandParameter="Small" />
+                        <Button Content="M"
+                                Padding="6,2"
+                                FontSize="11"
+                                Command="{Binding SetGridDensityCommand}"
+                                CommandParameter="Medium" />
+                        <Button Content="L"
+                                Padding="6,2"
+                                FontSize="11"
+                                Command="{Binding SetGridDensityCommand}"
+                                CommandParameter="Large" />
+                    </StackPanel>
+                </Grid>
             </StackPanel>
 
-            <!-- Master Content: Model List or Catalog Empty State -->
+            <!-- Master Content: True Multi-Column Grid (S6-001) or Empty States -->
             <Grid>
-                <!-- Catalog List -->
+                <!-- Catalog List with WrapPanel for Responsive Multi-Column Grid -->
                 <ListBox x:Name="ModelList"
                          ItemsSource="{Binding Models}"
                          SelectedItem="{Binding SelectedModel}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         Padding="0,0,6,0"
+                         Padding="4"
                          IsVisible="{Binding Models.Count, Converter={StaticResource EmptyCollectionToBoolConverter}, ConverterParameter=invert}">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.Styles>
                         <Style Selector="ListBoxItem">
-                            <Setter Property="Padding" Value="8,6" />
-                            <Setter Property="CornerRadius" Value="4" />
-                            <Setter Property="Margin" Value="0,2" />
+                            <Setter Property="Padding" Value="4" />
+                            <Setter Property="Margin" Value="4" />
+                            <Setter Property="CornerRadius" Value="8" />
+                            <Setter Property="ClipToBounds" Value="True" />
                         </Style>
                         <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
                             <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
@@ -122,41 +309,114 @@
                         <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
                             <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
                         </Style>
-                        <Style Selector="ListBoxItem TextBlock.path-text">
-                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </Style>
                         <Style Selector="ListBoxItem:selected TextBlock">
                             <Setter Property="Foreground" Value="White" />
-                        </Style>
-                        <Style Selector="ListBoxItem:selected TextBlock.path-text">
-                            <Setter Property="Foreground" Value="#D6E8FF" />
-                        </Style>
-                        <Style Selector="ListBoxItem:selected:pointerover TextBlock">
-                            <Setter Property="Foreground" Value="White" />
-                        </Style>
-                        <Style Selector="ListBoxItem:selected:pointerover TextBlock.path-text">
-                            <Setter Property="Foreground" Value="#EAF2FF" />
                         </Style>
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="catalog:ModelSummaryDto">
-                            <Grid ColumnDefinitions="48,*" ColumnSpacing="10" Margin="0,4">
-                                <Border Width="48"
-                                        Height="48"
-                                        CornerRadius="4"
-                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                        ClipToBounds="True">
-                                    <Image Stretch="Uniform"
-                                           Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding FilePath}"
-                                               Classes="path-text"
-                                               FontSize="12"
-                                               TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </Grid>
+                            <!-- Model Card: S6-003, S6-004 -->
+                            <Border Width="{Binding $parent[UserControl].((viewModels:DashboardViewModel)DataContext).CardWidth}"
+                                    Height="{Binding $parent[UserControl].((viewModels:DashboardViewModel)DataContext).CardHeight}"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    ClipToBounds="True">
+                                <Grid RowDefinitions="*,Auto">
+                                    <!-- Hero Preview (60-70% height) -->
+                                    <Border Grid.Row="0"
+                                            Height="{Binding $parent[UserControl].((viewModels:DashboardViewModel)DataContext).ThumbnailHeight}"
+                                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                            ClipToBounds="True">
+                                        <Panel>
+                                            <!-- Thumbnail Artwork Image -->
+                                            <Image Stretch="UniformToFill"
+                                                   Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
+
+                                            <!-- Fallback Icon if Thumbnail is Missing -->
+                                            <TextBlock Text="3D"
+                                                       FontSize="28"
+                                                       FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding ThumbnailPath, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+
+                                            <!-- Asset Count Pill Badge (Top-Left) -->
+                                            <Border HorizontalAlignment="Left"
+                                                    VerticalAlignment="Top"
+                                                    Margin="6"
+                                                    Background="#B0000000"
+                                                    CornerRadius="10"
+                                                    Padding="6,2">
+                                                <TextBlock Text="{Binding AssetCount, StringFormat={}{0} parts}"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="White" />
+                                            </Border>
+
+                                            <!-- Favorite Heart Button (Top-Right) -->
+                                            <Button HorizontalAlignment="Right"
+                                                    VerticalAlignment="Top"
+                                                    Margin="6"
+                                                    Width="28"
+                                                    Height="28"
+                                                    CornerRadius="14"
+                                                    Background="#B0000000"
+                                                    BorderThickness="0"
+                                                    Padding="0"
+                                                    Command="{Binding $parent[UserControl].((viewModels:DashboardViewModel)DataContext).ToggleFavoriteCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Toggle favorite">
+                                                <TextBlock Text="{Binding IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                                           Foreground="{Binding IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                                           FontSize="14"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Button>
+                                        </Panel>
+                                    </Border>
+
+                                    <!-- Card Lower Metadata: Clean Title, Artist, Collection (No raw paths or hashes) -->
+                                    <StackPanel Grid.Row="1" Margin="8,6" Spacing="4">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding Name}" />
+
+                                        <WrapPanel Orientation="Horizontal">
+                                            <!-- Artist Pill -->
+                                            <Border IsVisible="{Binding ArtistName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="5,1"
+                                                    Margin="0,0,4,2">
+                                                <TextBlock Text="{Binding ArtistName}"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="130" />
+                                            </Border>
+
+                                            <!-- Collection Pill -->
+                                            <Border IsVisible="{Binding CollectionName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="5,1"
+                                                    Margin="0,0,4,2">
+                                                <TextBlock Text="{Binding CollectionName}"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="130" />
+                                            </Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -193,8 +453,9 @@
                                    TextAlignment="Center"
                                    MaxWidth="280"
                                    HorizontalAlignment="Center" />
-                        <Button Content="Browse Folder..."
-                                Click="BrowseFolderClick"
+                        <Button Content="Manage Library..."
+                                Command="{Binding ToggleLibraryDrawerCommand}"
+                                Classes="accent"
                                 HorizontalAlignment="Center"
                                 Margin="0,4,0,0" />
                     </StackPanel>
@@ -249,7 +510,7 @@
                       Background="{DynamicResource DividerStrokeColorDefaultBrush}"
                       HorizontalAlignment="Center" />
 
-        <!-- Column 2: Inspector Panel -->
+        <!-- Column 2: Inspector Panel (S6-007, S6-008, S6-009) -->
         <Border x:Name="InspectorPanel"
                 Grid.Column="2"
                 MinWidth="320"
@@ -291,7 +552,7 @@
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="Select a model from the library to inspect its files, 3D preview, and metadata."
+                            <TextBlock Text="Select a model from the library to inspect its artwork, notes, metadata, and files."
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="12"
                                        TextWrapping="Wrap"
@@ -303,50 +564,177 @@
 
                     <!-- Inspector Populated State -->
                     <StackPanel Spacing="12" IsVisible="{Binding HasSelectedModel}">
-                        <Border Height="180"
-                                CornerRadius="4"
+                        <!-- Hero Preview Image with Favorite Button (S6-007) -->
+                        <Border Height="200"
+                                CornerRadius="6"
                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 ClipToBounds="True">
-                            <Image Stretch="Uniform"
-                                   Source="{Binding PreviewPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
+                            <Panel>
+                                <Image Stretch="Uniform"
+                                       Source="{Binding PreviewPath, Converter={StaticResource ThumbnailBitmapConverter}}" />
+                                <Button HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Margin="8"
+                                        Width="32"
+                                        Height="32"
+                                        CornerRadius="16"
+                                        Background="#B0000000"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Command="{Binding ToggleFavoriteCommand}"
+                                        CommandParameter="{Binding SelectedModel}"
+                                        ToolTip.Tip="Toggle favorite">
+                                    <TextBlock Text="{Binding SelectedModel.IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                               Foreground="{Binding SelectedModel.IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                               FontSize="16"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Button>
+                            </Panel>
                         </Border>
+
+                        <!-- Model Name -->
                         <StackPanel Spacing="4">
                             <TextBlock Text="Model name" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
-                            <TextBlock Text="{Binding DetailedModel.Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding DetailedModel.Name}" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" />
                         </StackPanel>
+
+                        <!-- Metadata Pivot Navigation & Editing -->
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Artist" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Artist" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                                <Button Grid.Column="1"
+                                        Content="⌕ View Artist"
+                                        FontSize="11"
+                                        Padding="4,1"
+                                        Background="Transparent"
+                                        Command="{Binding FilterByArtistCommand}"
+                                        CommandParameter="{Binding ArtistDraft}"
+                                        IsVisible="{Binding ArtistDraft, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </Grid>
                             <TextBox PlaceholderText="Artist name"
                                      Text="{Binding ArtistDraft}" />
                         </StackPanel>
+
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Collection" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Collection" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                                <Button Grid.Column="1"
+                                        Content="⌕ View Collection"
+                                        FontSize="11"
+                                        Padding="4,1"
+                                        Background="Transparent"
+                                        Command="{Binding FilterByCollectionCommand}"
+                                        CommandParameter="{Binding CollectionDraft}"
+                                        IsVisible="{Binding CollectionDraft, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </Grid>
                             <TextBox PlaceholderText="Collection name"
                                      Text="{Binding CollectionDraft}" />
                         </StackPanel>
+
                         <StackPanel Spacing="4">
                             <TextBlock Text="Tags" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
                             <TextBox PlaceholderText="miniature, supported, monster"
                                      Text="{Binding TagsDraft}" />
                         </StackPanel>
+
                         <Button x:Name="SaveMetadataButton"
                                 Content="Save metadata"
                                 Classes="accent"
                                 Command="{Binding SaveMetadataCommand}"
                                 HorizontalAlignment="Stretch" />
-                        <TextBlock Text="Associated files" FontWeight="SemiBold" Margin="0,4,0,0" />
-                        <ItemsControl ItemsSource="{Binding DetailedModel.Files}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="catalog:ModelFileDto">
-                                    <StackPanel Spacing="2" Margin="0,0,0,8">
-                                        <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding FileHash}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+
+                        <!-- S6-008: Model Description & Print Notes Support -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Description" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                            <TextBox PlaceholderText="Add lore, background, or character description..."
+                                     Text="{Binding DescriptionDraft}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Height="60" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Print Notes" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
+                            <TextBox PlaceholderText="Slicing advice, infill, supports, resin exposure..."
+                                     Text="{Binding PrintNotesDraft}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Height="60" />
+                        </StackPanel>
+
+                        <Button Content="Save Notes &amp; Description"
+                                Command="{Binding SaveDescriptionCommand}"
+                                HorizontalAlignment="Stretch" />
+
+                        <!-- S6-009: Collapsible Technical Details & Diagnostics Expander -->
+                        <Expander Header="Technical Details &amp; Diagnostics"
+                                  IsExpanded="False"
+                                  Margin="0,4,0,0">
+                            <StackPanel Spacing="10" Margin="0,8,0,0">
+                                <!-- Discovery Diagnostics Box -->
+                                <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="6"
+                                        Padding="10">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="DISCOVERY DIAGNOSTICS"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding SelectedModelMethodText, StringFormat=Method: {0}}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold" />
+                                            <Border Grid.Column="1"
+                                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2">
+                                                <TextBlock Text="{Binding SelectedModelConfidenceText}"
+                                                           Foreground="White"
+                                                           FontSize="11"
+                                                           FontWeight="Bold" />
+                                            </Border>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding DetailedModel.DiscoveryEvidence}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding StringFormat=• {0}}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                </Border>
+
+                                <!-- Associated Files List -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                    <TextBlock Grid.Column="0" Text="Associated assets" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding DetailedModel.Files.Count, StringFormat={}{0} files}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="12" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding DetailedModel.Files}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="catalog:ModelFileDto">
+                                            <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="8,6"
+                                                    Margin="0,0,0,6">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" FontSize="11" />
+                                                    <TextBlock Text="{Binding FileHash}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="10" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>

@@ -1,0 +1,236 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:catalog="using:DPV.Domain.Contracts.Catalog"
+             xmlns:converters="using:DPV.UI.Converters"
+             xmlns:viewModels="using:DPV.UI.ViewModels"
+             x:Class="DPV.UI.Views.ReleaseDetailView"
+             x:DataType="viewModels:ReleaseDetailViewModel">
+    <UserControl.Resources>
+        <converters:ThumbnailBitmapConverter x:Key="ThumbnailBitmapConverter" />
+        <converters:FavoriteIconConverter x:Key="FavoriteIconConverter" />
+        <converters:FavoriteBrushConverter x:Key="FavoriteBrushConverter" />
+    </UserControl.Resources>
+
+    <DockPanel LastChildFill="True">
+        <!-- Top Navigation & Actions Bar -->
+        <Border DockPanel.Dock="Top"
+                Margin="0,0,0,16"
+                Padding="0,0,0,12"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0"
+                        Content="← Back"
+                        Command="{Binding BackCommand}"
+                        Padding="12,6"
+                        FontWeight="SemiBold" />
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="10"
+                            Margin="16,0,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}"
+                               FontSize="18"
+                               FontWeight="Bold" />
+                    <Button Content="{Binding ArtistName, StringFormat='by {0}'}"
+                            Background="Transparent"
+                            Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                            FontWeight="SemiBold"
+                            Padding="4,2"
+                            Command="{Binding BrowseArtistCommand}" />
+                </StackPanel>
+
+                <!-- Favorite Toggle Button -->
+                <Button Grid.Column="2"
+                        Command="{Binding ToggleFavoriteCommand}"
+                        Padding="12,6"
+                        Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                   Foreground="{Binding IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                   FontSize="14" />
+                        <TextBlock Text="Favorite Set" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Main Scrollable Content -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="20">
+                <!-- Cinematic Hero Showcase Banner (S7-009) -->
+                <Border CornerRadius="12"
+                        ClipToBounds="True"
+                        Height="220"
+                        Background="#17212B"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <Panel>
+                        <!-- Cover Image -->
+                        <Image Source="{Binding CoverImagePath, Converter={StaticResource ThumbnailBitmapConverter}}"
+                               Stretch="UniformToFill"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+
+                        <!-- Dark Gradient Overlay for Readability -->
+                        <Border Background="#900D1117" />
+
+                        <!-- Banner Text Content -->
+                        <Grid RowDefinitions="*,Auto" Margin="24">
+                            <StackPanel Grid.Row="0" Spacing="6" VerticalAlignment="Top">
+                                <Border Background="#CC4F46E5"
+                                        CornerRadius="6"
+                                        Padding="8,4"
+                                        HorizontalAlignment="Left">
+                                    <TextBlock Text="RELEASE &amp; CAMPAIGN SET"
+                                               FontSize="10"
+                                               FontWeight="Bold"
+                                               Foreground="White" />
+                                </Border>
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Description}"
+                                           FontSize="13"
+                                           Foreground="#D1D5DB"
+                                           MaxLines="2"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1"
+                                        Orientation="Horizontal"
+                                        Spacing="16"
+                                        VerticalAlignment="Bottom">
+                                <Border Background="#CC111827"
+                                        CornerRadius="6"
+                                        Padding="10,5">
+                                    <TextBlock Text="{Binding ModelCount, StringFormat='{}{0} Contained Models'}"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="#F3F4F6" />
+                                </Border>
+                                <TextBlock Text="{Binding ReleaseDate, StringFormat='Release: {0}'}"
+                                           Foreground="#9CA3AF"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Panel>
+                </Border>
+
+                <!-- Contained Models Section (S7-010) -->
+                <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                    <TextBlock Grid.Column="0"
+                               Text="Contained Models"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center" />
+
+                    <!-- Density Selector -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Spacing="4"
+                                VerticalAlignment="Center">
+                        <Button Content="S"
+                                Padding="8,4"
+                                Command="{Binding SetDensitySmallCommand}"
+                                ToolTip.Tip="Compact density" />
+                        <Button Content="M"
+                                Padding="8,4"
+                                Command="{Binding SetDensityMediumCommand}"
+                                ToolTip.Tip="Medium density" />
+                        <Button Content="L"
+                                Padding="8,4"
+                                Command="{Binding SetDensityLargeCommand}"
+                                ToolTip.Tip="Large density" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Models Grid -->
+                <ItemsControl ItemsSource="{Binding Models}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="catalog:ModelSummaryDto">
+                            <Border Margin="0,0,12,12"
+                                    Width="{Binding $parent[UserControl].((viewModels:ReleaseDetailViewModel)DataContext).CardWidth}"
+                                    CornerRadius="8"
+                                    ClipToBounds="True"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <!-- Card Thumbnail -->
+                                    <Button Grid.Row="0"
+                                            Padding="0"
+                                            Background="#1E232A"
+                                            Height="{Binding $parent[UserControl].((viewModels:ReleaseDetailViewModel)DataContext).ThumbnailHeight}"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch"
+                                            VerticalContentAlignment="Stretch"
+                                            Command="{Binding $parent[UserControl].((viewModels:ReleaseDetailViewModel)DataContext).SelectModelCommand}"
+                                            CommandParameter="{Binding}">
+                                        <Panel>
+                                            <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailBitmapConverter}}"
+                                                   Stretch="Uniform"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+
+                                            <!-- Asset Count Badge -->
+                                            <Border HorizontalAlignment="Left"
+                                                    VerticalAlignment="Top"
+                                                    Margin="6"
+                                                    Background="#CC111827"
+                                                    CornerRadius="4"
+                                                    Padding="6,2">
+                                                <TextBlock Text="{Binding AssetCount, StringFormat='{}{0} files'}"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"
+                                                           Foreground="#F3F4F6" />
+                                            </Border>
+
+                                            <!-- Favorite Heart Button -->
+                                            <Button HorizontalAlignment="Right"
+                                                    VerticalAlignment="Top"
+                                                    Margin="4"
+                                                    Padding="4,2"
+                                                    Background="#B017212B"
+                                                    CornerRadius="4"
+                                                    Command="{Binding $parent[UserControl].((viewModels:ReleaseDetailViewModel)DataContext).ToggleModelFavoriteCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <TextBlock Text="{Binding IsFavorite, Converter={StaticResource FavoriteIconConverter}}"
+                                                           Foreground="{Binding IsFavorite, Converter={StaticResource FavoriteBrushConverter}}"
+                                                           FontSize="12" />
+                                            </Button>
+                                        </Panel>
+                                    </Button>
+
+                                    <!-- Card Info -->
+                                    <Border Grid.Row="1" Padding="10,8">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ArtistName}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

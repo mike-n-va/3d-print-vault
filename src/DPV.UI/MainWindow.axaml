@@ -16,14 +16,35 @@
         MinHeight="500"
         WindowStartupLocation="CenterScreen">
     <Window.DataTemplates>
+        <DataTemplate DataType="{x:Type viewModels:MainDashboardViewModel}">
+            <views:MainDashboardView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type viewModels:DashboardViewModel}">
             <views:DashboardView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:ReleaseBrowserViewModel}">
+            <views:ReleaseBrowserView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:ReleaseDetailViewModel}">
+            <views:ReleaseDetailView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:FavoritesViewModel}">
+            <views:FavoritesView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type viewModels:DuplicatesViewModel}">
             <views:DuplicatesView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type viewModels:AnalyticsViewModel}">
             <views:AnalyticsView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:ArtistBrowserViewModel}">
+            <views:ArtistBrowserView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:CollectionBrowserViewModel}">
+            <views:CollectionBrowserView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:TagBrowserViewModel}">
+            <views:TagBrowserView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
             <views:SettingsView />
@@ -56,6 +77,21 @@
                             Command="{Binding ShowDashboardCommand}">
                         <TextBlock Text="Dashboard" FontWeight="SemiBold" />
                     </Button>
+                    <Button x:Name="FavoritesNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowFavoritesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="♥" Foreground="#FF4757" FontSize="13" />
+                            <TextBlock Text="Favorites" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Dashboard.FavoritesCount, StringFormat='({0})'}"
+                                       Foreground="#AAB7C4"
+                                       FontSize="11"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="AnalyticsNavigationButton"
                             Background="Transparent"
                             Foreground="White"
@@ -72,15 +108,41 @@
                             Command="{Binding ShowDuplicatesCommand}">
                         <TextBlock Text="Duplicates" FontWeight="SemiBold" />
                     </Button>
-                    <Border Padding="12,10">
-                        <TextBlock Text="Artists" Foreground="#D6DEE5" />
-                    </Border>
-                    <Border Padding="12,10">
-                        <TextBlock Text="Collections" Foreground="#D6DEE5" />
-                    </Border>
-                    <Border Padding="12,10">
-                        <TextBlock Text="Tags" Foreground="#D6DEE5" />
-                    </Border>
+                    <Button x:Name="ReleasesNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowReleasesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📦" FontSize="13" />
+                            <TextBlock Text="Releases &amp; Sets" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ArtistsNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowArtistsCommand}">
+                        <TextBlock Text="Artists" FontWeight="SemiBold" />
+                    </Button>
+                    <Button x:Name="CollectionsNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowCollectionsCommand}">
+                        <TextBlock Text="Collections" FontWeight="SemiBold" />
+                    </Button>
+                    <Button x:Name="TagsNavigationButton"
+                            Background="Transparent"
+                            Foreground="White"
+                            HorizontalContentAlignment="Left"
+                            Padding="12,10"
+                            Command="{Binding ShowTagsCommand}">
+                        <TextBlock Text="Tags" FontWeight="SemiBold" />
+                    </Button>
                     <Button x:Name="SettingsNavigationButton"
                             Background="Transparent"
                             Foreground="White"
@@ -98,10 +160,45 @@
                 Background="{DynamicResource LayerFillColorAltBrush}"
                 Padding="24,20">
             <Grid RowDefinitions="Auto,*">
-                <TextBlock Text="Workspace"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                    <TextBlock Grid.Column="0"
+                               Text="Workspace"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               VerticalAlignment="Center" />
+
+                    <!-- Primary Library Scope Switcher (S7-013) -->
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="3">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button Content="Models"
+                                    Command="{Binding ShowModelsCommand}"
+                                    Padding="12,5"
+                                    FontWeight="SemiBold"
+                                    Background="Transparent" />
+                            <Button Content="Releases"
+                                    Command="{Binding ShowReleasesCommand}"
+                                    Padding="12,5"
+                                    FontWeight="SemiBold"
+                                    Background="Transparent" />
+                            <Button Content="Artists"
+                                    Command="{Binding ShowArtistsCommand}"
+                                    Padding="12,5"
+                                    FontWeight="SemiBold"
+                                    Background="Transparent" />
+                            <Button Content="Favorites"
+                                    Command="{Binding ShowFavoritesCommand}"
+                                    Padding="12,5"
+                                    FontWeight="SemiBold"
+                                    Background="Transparent" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
                 <Border x:Name="DashboardContentRegion"
                         Grid.Row="1"
                         Margin="0,16,0,0"
