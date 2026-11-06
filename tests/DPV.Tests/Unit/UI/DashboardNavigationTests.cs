@@ -181,6 +181,42 @@ public class DashboardNavigationTests
             Task.CompletedTask;
     }
 
+    [Fact]
+    public async Task ClearSearchCommandResetsQueryAndRestoresCatalog()
+    {
+        var catalog = new RecordingCatalogQuery();
+        var dashboard = new DashboardViewModel(new RecordingImportService(), catalog, rootPath: @"C:\library");
+        dashboard.SearchQuery = "test-query";
+        dashboard.TagFilter = "custom-tag";
+
+        Assert.True(dashboard.IsFiltered);
+        Assert.True(dashboard.ClearSearchCommand.CanExecute(null));
+
+        dashboard.ClearSearchCommand.Execute(null);
+
+        Assert.Empty(dashboard.SearchQuery);
+        Assert.Equal("All", dashboard.TagFilter);
+        Assert.False(dashboard.IsFiltered);
+        Assert.Equal(1, catalog.CallCount);
+    }
+
+    [Fact]
+    public void EmptyStateFlagsDistinguishEmptyCatalogFromEmptySearch()
+    {
+        var dashboard = CreateDashboard();
+
+        Assert.Empty(dashboard.Models);
+        Assert.False(dashboard.IsFiltered);
+        Assert.True(dashboard.IsEmptyCatalog);
+        Assert.False(dashboard.IsEmptySearch);
+
+        dashboard.SearchQuery = "test";
+
+        Assert.True(dashboard.IsFiltered);
+        Assert.False(dashboard.IsEmptyCatalog);
+        Assert.True(dashboard.IsEmptySearch);
+    }
+
     private static DashboardViewModel CreateDashboard() =>
         new(new RecordingImportService(), new StaticCatalogQuery());
 

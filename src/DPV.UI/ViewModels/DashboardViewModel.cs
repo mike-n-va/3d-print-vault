@@ -57,6 +57,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         ImportCommand = new RelayCommand(() => _ = ImportAsync(), () => !IsScanning && !string.IsNullOrWhiteSpace(RootPath));
         CancelCommand = new RelayCommand(CancelScan, () => IsScanning);
         ExecuteSearchCommand = new RelayCommand(() => _ = ExecuteSearchAsync());
+        ClearSearchCommand = new RelayCommand(ClearSearch);
         SaveMetadataCommand = new RelayCommand(() => _ = SaveMetadataAsync(), () => SelectedModel is not null && !IsScanning);
         ShowDuplicatesCommand = new RelayCommand(() => ShowDuplicates?.Invoke());
     }
@@ -82,6 +83,28 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     public ICommand CancelCommand { get; }
 
     public ICommand ExecuteSearchCommand { get; }
+
+    public ICommand ClearSearchCommand { get; }
+
+    public bool IsFiltered => !string.IsNullOrWhiteSpace(SearchQuery) || (TagFilter != "All" && !string.IsNullOrWhiteSpace(TagFilter));
+
+    public bool IsEmptySearch => Models.Count == 0 && IsFiltered;
+
+    public bool IsEmptyCatalog => Models.Count == 0 && !IsFiltered;
+
+    public void ClearSearch()
+    {
+        SearchQuery = string.Empty;
+        TagFilter = "All";
+        _ = ExecuteSearchAsync();
+    }
+
+    private void RaiseFilterProperties()
+    {
+        OnPropertyChanged(nameof(IsFiltered));
+        OnPropertyChanged(nameof(IsEmptySearch));
+        OnPropertyChanged(nameof(IsEmptyCatalog));
+    }
 
     public ICommand SaveMetadataCommand { get; }
 
@@ -175,6 +198,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _searchQuery, value))
             {
+                RaiseFilterProperties();
                 _ = DebouncedSearchAsync();
             }
         }
@@ -187,6 +211,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _tagFilter, string.IsNullOrWhiteSpace(value) ? "All" : value))
             {
+                RaiseFilterProperties();
                 _ = DebouncedSearchAsync();
             }
         }
@@ -228,6 +253,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         }
 
         QueueThumbnails(Models.ToArray());
+        RaiseFilterProperties();
 
         if (!string.IsNullOrWhiteSpace(SearchQuery) || TagFilter != "All")
         {

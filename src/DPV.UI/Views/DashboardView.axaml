@@ -33,7 +33,7 @@
                 </Grid>
 
                 <!-- Toolbar Tier 2: Import, Cancel, Progress, Status -->
-                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
                     <Button x:Name="ImportButton"
                             Grid.Column="0"
                             Content="Import"
@@ -44,31 +44,52 @@
                             Grid.Column="1"
                             Content="Cancel"
                             Command="{Binding CancelCommand}"
+                            IsVisible="{Binding IsScanning}"
                             VerticalAlignment="Center" />
-                    <ProgressBar x:Name="ImportProgressBar"
-                                 Grid.Column="2"
-                                 Minimum="0"
-                                 Maximum="100"
-                                 Value="{Binding ProgressPercentage}"
-                                 IsIndeterminate="{Binding IsScanning}"
-                                 Height="4"
-                                 VerticalAlignment="Center" />
-                    <TextBlock x:Name="ImportStatusText"
-                               Grid.Column="3"
-                               Text="{Binding CurrentStatusText}"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               FontSize="12"
-                               VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="ImportStatusText"
+                                       Grid.Column="0"
+                                       Text="{Binding CurrentStatusText}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ProgressPercentage, StringFormat={}{0:F0}%}"
+                                       IsVisible="{Binding IsScanning}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <ProgressBar x:Name="ImportProgressBar"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding ProgressPercentage}"
+                                     IsIndeterminate="{Binding IsScanning}"
+                                     Height="4"
+                                     CornerRadius="2"
+                                     IsVisible="{Binding IsScanning}" />
+                    </StackPanel>
                 </Grid>
 
                 <!-- Dedicated Filter Bar: Search Box and Tag Filter -->
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                     <TextBox x:Name="SearchBox"
                              Grid.Column="0"
                              PlaceholderText="Search models"
                              Text="{Binding SearchQuery}" />
+                    <Button x:Name="ClearSearchButton"
+                            Grid.Column="1"
+                            Content="✕ Clear"
+                            Command="{Binding ClearSearchCommand}"
+                            IsVisible="{Binding IsFiltered}"
+                            ToolTip.Tip="Clear search filter and show all library items"
+                            VerticalAlignment="Center" />
                     <ComboBox x:Name="TagFilterBox"
-                              Grid.Column="1"
+                              Grid.Column="2"
                               MinWidth="140"
                               ItemsSource="{Binding TagFilterChoices}"
                               SelectedItem="{Binding TagFilter}"
@@ -82,7 +103,41 @@
                 <ListBox x:Name="ModelList"
                          ItemsSource="{Binding Models}"
                          SelectedItem="{Binding SelectedModel}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Padding="0,0,6,0"
                          IsVisible="{Binding Models.Count, Converter={StaticResource EmptyCollectionToBoolConverter}, ConverterParameter=invert}">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="CornerRadius" Value="4" />
+                            <Setter Property="Margin" Value="0,2" />
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                        </Style>
+                        <Style Selector="ListBoxItem TextBlock.path-text">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected TextBlock">
+                            <Setter Property="Foreground" Value="White" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected TextBlock.path-text">
+                            <Setter Property="Foreground" Value="#D6E8FF" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected:pointerover TextBlock">
+                            <Setter Property="Foreground" Value="White" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected:pointerover TextBlock.path-text">
+                            <Setter Property="Foreground" Value="#EAF2FF" />
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="catalog:ModelSummaryDto">
                             <Grid ColumnDefinitions="48,*" ColumnSpacing="10" Margin="0,4">
@@ -97,7 +152,7 @@
                                 <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{Binding FilePath}"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Classes="path-text"
                                                FontSize="12"
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
@@ -106,8 +161,8 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <!-- Catalog Empty State -->
-                <Border IsVisible="{Binding Models.Count, Converter={StaticResource EmptyCollectionToBoolConverter}}"
+                <!-- Catalog Empty State (When Library Has No Models) -->
+                <Border IsVisible="{Binding IsEmptyCatalog}"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"
                         Padding="24">
@@ -144,6 +199,46 @@
                                 Margin="0,4,0,0" />
                     </StackPanel>
                 </Border>
+
+                <!-- Search Empty State (When Active Query Has No Matches) -->
+                <Border IsVisible="{Binding IsEmptySearch}"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Padding="24">
+                    <StackPanel Spacing="12" HorizontalAlignment="Center">
+                        <Border Width="56"
+                                Height="56"
+                                CornerRadius="12"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                HorizontalAlignment="Center">
+                            <TextBlock Text="⌕"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="No Matching Models"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="No models match your current search query or active filter."
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="280"
+                                   HorizontalAlignment="Center" />
+                        <Button Content="Clear Search &amp; Show All"
+                                Command="{Binding ClearSearchCommand}"
+                                Classes="accent"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </DockPanel>
 
@@ -164,7 +259,9 @@
                 BorderThickness="1"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-            <ScrollViewer>
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,8,0">
                 <StackPanel Spacing="12">
                     <TextBlock Text="Model Inspector" FontSize="18" FontWeight="SemiBold" />
 

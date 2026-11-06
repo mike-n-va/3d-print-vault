@@ -3,22 +3,47 @@
              xmlns:viewModels="using:DPV.UI.ViewModels"
              x:Class="DPV.UI.Views.SettingsView"
              x:DataType="viewModels:SettingsViewModel">
-    <StackPanel Spacing="12">
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
-        <TextBlock Text="{Binding StatusText}" Foreground="#5C6873" TextWrapping="Wrap" />
-        <TextBlock Text="Catalog export" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Export CSV" Click="ExportCsvClick" />
-            <Button Content="Export JSON" Click="ExportJsonClick" />
+    <StackPanel Spacing="16" MaxWidth="700">
+        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Automatic Data Persistence" FontWeight="SemiBold" />
+                <TextBlock Text="All changes (imported models, artist edits, collections, tags) are saved immediately to your local SQLite vault database. A manual save button is not required."
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Spacing="8">
+            <TextBlock Text="Catalog export" FontWeight="SemiBold" />
+            <TextBlock Text="Export your metadata catalog for external spreadsheets or backup records."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Export CSV" Click="ExportCsvClick" ToolTip.Tip="Export library catalog to CSV format" />
+                <Button Content="Export JSON" Click="ExportJsonClick" ToolTip.Tip="Export library catalog to JSON format" />
+            </StackPanel>
         </StackPanel>
-        <TextBlock Text="Database maintenance" FontWeight="SemiBold" />
-        <TextBlock Text="Vacuum reclaims free pages. Backup and restore copy the catalog database. Restore replaces the current catalog."
-                   Foreground="#5C6873"
-                   TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Vacuum" Click="VacuumClick" />
-            <Button Content="Backup database" Click="BackupClick" />
-            <Button Content="Restore database" Click="RestoreClick" />
+
+        <StackPanel Spacing="8">
+            <TextBlock Text="Database maintenance" FontWeight="SemiBold" />
+            <TextBlock Text="Vacuum reclaims unused disk space. Backup exports a snapshot of your catalog database. Restore replaces the current catalog with a previously saved backup file."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Vacuum" Click="VacuumClick" ToolTip.Tip="Reclaim unused disk pages and optimize database performance" />
+                <Button Content="Backup database" Click="BackupClick" ToolTip.Tip="Save a complete snapshot copy of your vault catalog database to disk" />
+                <Button Content="Restore database" Click="RestoreClick" ToolTip.Tip="Restore and overwrite the vault catalog from an existing database file" />
+            </StackPanel>
         </StackPanel>
     </StackPanel>
 </UserControl>

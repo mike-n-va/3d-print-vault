@@ -92,17 +92,63 @@ must be approved before Commit A.
 
 # Deferred Features
 
-These remain outside the walking-skeleton implementation. Exact SHA-256
-duplicate review is now in `DPV-S3-003`; geometry similarity is still deferred:
+Deferred features and capabilities are prioritized under the formal Feature Priority Scoring Rubric (1–5 scale across User Value, Architectural Leverage, Implementation Complexity, Risk, Strategic Alignment, and Foundation Dependency; Max: 30). See [DEFERRED-FEATURES-REVIEW-001](../reviews/DEFERRED-FEATURES-REVIEW-001.md) for full justifications, dependency chains, and category scores.
 
-- Search behavior beyond the minimal model list.
-- Interactive 3D rendering and renderer/package selection.
-- Thumbnail generation beyond the isometric wireframe cache.
-- Geometry similarity.
-- Print history, analytics, cloud synchronization, and multi-user access.
+### Prioritized Deferred Features
+
+1. **Folder Structure Metadata Inference** (Score: 29 | Tier 1 — Build Next | Sprint 5)
+   - Parses existing folder organization (Artist / Collection / Release) during import into relational catalog entities.
+2. **Dedicated Artist, Collection & Tag Views** (Score: 28 | Tier 1 — Build Next | Sprint 5)
+   - Replaces inert sidebar labels with interactive navigation views backed by Domain repository contracts.
+3. **Visual Catalog Grid View** (Score: 26 | Tier 1 — Build Next | Sprint 5)
+   - Multiple catalog presentation modes (List, Compact List, Grid, Large Thumbnail, Details View) transforming DPV into a visual asset library (Plex/Lightroom for 3D printing).
+4. **Organization Recommendation Engine** (Score: 27 | Tier 1 — Build Next | Sprint 5)
+   - Non-destructive move, rename, and cleanup recommendations without altering source files (ADR-DPV-ORGANIZATION-001 Phase 3).
+5. **Metadata Sidecar Sync (`.dpv.json`)** (Score: 24 | Tier 2 — High Priority | Sprint 6)
+   - Portable sidecar metadata files adjacent to STLs for backup, migration, and database independence.
+6. **Window State & Preferences Persistence** (Score: 23 | Tier 2 — High Priority | Sprint 5)
+   - Restores window geometry, layout split ratios, active view mode, and library paths across application restarts.
+7. **Kit / Multi-Part Assembly Virtualization** (Score: 22 | Tier 2 — High Priority | Sprint 6)
+   - Virtualized items repeater controls for large multi-part kits with hundreds of associated STLs.
+8. **Interactive 3D Model Viewer** (Score: 21 | Tier 2 — High Priority | Sprint 6)
+   - Real-time in-app 3D mesh rendering, rotation, pan, zoom, and wireframe/shaded preview.
+9. **Archive Metadata & Ingestion (ZIP/RAR/7z)** (Score: 20 | Tier 3 — Useful / Deferrable | Sprint 7)
+   - Direct cataloging of archived 3D collections without requiring prior disk extraction.
+10. **High-Fidelity Shaded Thumbnail Previews** (Score: 20 | Tier 3 — Useful / Deferrable | Sprint 7)
+    - Shaded, lighted 2D preview generation upgrading basic isometric wireframes.
+11. **User-Approved Vault Migration & Execution** (Score: 18 | Tier 3 — Useful / Deferrable | Sprint 8)
+    - Explicit, user-reviewed physical file reorganization with dry runs and rollback journals (Phase 4).
+12. **AI-Assisted Metadata Classifier & Tagger** (Score: 15 | Tier 4 — Low Priority | Sprint 9+)
+13. **Geometric / Topological Similarity Duplicate Detection** (Score: 15 | Tier 4 — Low Priority | Sprint 9+)
+14. **Print History & Slicing Job Logging** (Score: 15 | Tier 4 — Low Priority | Sprint 9+)
+15. **Managed Vault Storage Root Mode** (Score: 14 | Tier 4 — Low Priority | Sprint 10+)
+16. **Cloud Synchronization & Multi-User Access** (Score: 8 | Tier 5 — Do Not Pursue Yet | Backlog / Rejected)
+
+### Future Sprint Horizon
+
+```text
+Sprint 5: Core Discovery, Visual Grid & Shell Completion
+├── Folder Structure Metadata Inference
+├── Dedicated Artist, Collection & Tag Views
+├── Visual Catalog Grid View
+├── Organization Recommendation Engine
+└── Window State & Preferences Persistence
+
+Sprint 6: Deep Content Inspection & Portability
+├── Metadata Sidecar Sync (.dpv.json)
+├── Kit / Multi-Part Assembly Virtualization
+└── Interactive 3D Model Viewer
+
+Sprint 7: Advanced Ingestion & Visual Polish
+├── Archive Metadata & Ingestion (ZIP/RAR/7z)
+└── High-Fidelity Shaded Thumbnail Previews
+
+Sprint 8+: User-Approved Vault Operations
+└── User-Approved Vault Migration & Execution
+```
 
 Existing deferred research placeholders remain:
 
 - REA-002: Search System
 - REA-003: 3D Viewer
-- REA-004: Duplicate Detection (exact SHA-256 capability; not part of the walking skeleton)
+- REA-004: Duplicate Detection (exact SHA-256 capability implemented; similarity deferred)
