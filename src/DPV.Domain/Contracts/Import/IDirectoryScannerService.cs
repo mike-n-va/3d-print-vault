@@ -20,7 +20,11 @@ public sealed record ScanResult(
     int TotalFiles,
     TimeSpan Elapsed,
     bool IsIncremental,
-    IReadOnlyList<string> Errors)
+    IReadOnlyList<string> Errors,
+    int RetiredFiles = 0,
+    int RetiredModels = 0,
+    int RetiredReleases = 0,
+    int RetiredArtists = 0)
 {
     public bool Success => Errors.Count == 0;
 }

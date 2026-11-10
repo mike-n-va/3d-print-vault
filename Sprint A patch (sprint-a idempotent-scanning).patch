@@ -1,0 +1,1515 @@
+From b62d68760c2d67e4606220b69e20ee0fb8fe5f77 Mon Sep 17 00:00:00 2001
+From: Michael Overholtz <mike.n.va@gmail.com>
+Date: Tue, 10 Nov 2026 15:17:06 +0000
+Subject: [PATCH] SPRINT A: idempotent scanning with schema v11, natural keys,
+ and end-of-scan reconciliation
+
+Schema v11 (MigrationRunner):
+- IsActive tombstones on Artists/Releases/Models/Files; SourcePipeline
+  lineage on Models/Releases; real ContentHash column on Files
+- One-time migration retires legacy v1 rows (FolderPath IS NULL is the
+  lineage marker), dedupes pre-v11 duplicate Models per FolderPath
+  (keeps newest), and enforces UX_Models_FolderPath (unique among
+  active rows) + IX_Files_ContentHash partial indexes
+
+Scanner (DirectoryScannerService):
+- Tier 3 upsert keyed on the natural key FolderPath: model GUIDs survive
+  re-scans and user metadata (IsFavorite, PrintNotes) is preserved
+- Per-release transactions with per-release error isolation
+- Real content hashing (SHA-256 with edge sampling) replaces the
+  path+size placeholder hash; quick-hash fallback on IO errors
+- End-of-scan reconciliation sweep retires Files/Models/Releases/
+  Artists whose folders vanished from disk, scoped to the scan root
+  with separator-boundary checks, skipped on cancelled scans
+- Reactivates retired artists/releases/models on rescan
+
+Read side:
+- Catalog, release, and detail queries filter on IsActive so retired
+  rows never surface in the UI
+- Dashboard status text reports retired counts
+
+Tests: 18-test regression suite covering rescan idempotency, identity
+and metadata preservation, reconciliation (file/model/release/artist),
+root scoping, cancellation safety, content hashing, and the v10->v11
+migration (legacy retirement, dedup, unique index).
+
+Co-authored-by: Perplexity <noreply@perplexity.ai>
+---
+ .../Import/IDirectoryScannerService.cs        |   6 +-
+ .../Import/DirectoryScannerService.cs         | 384 +++++++++--
+ .../Persistence/DapperCatalogQuery.cs         |  18 +-
+ .../DapperModelDetailRepository.cs            |   4 +-
+ .../Persistence/DapperReleaseRepository.cs    |  12 +-
+ .../Persistence/MigrationRunner.cs            |  74 ++-
+ .../ViewModels/MainDashboardViewModel.cs      |   5 +-
+ ...cannerIdempotencyAndReconciliationTests.cs | 612 ++++++++++++++++++
+ 8 files changed, 1042 insertions(+), 73 deletions(-)
+ create mode 100644 tests/DPV.Tests/Unit/Infrastructure/ScannerIdempotencyAndReconciliationTests.cs
+
+diff --git a/src/DPV.Domain/Contracts/Import/IDirectoryScannerService.cs b/src/DPV.Domain/Contracts/Import/IDirectoryScannerService.cs
+index efeeaa1..25a284b 100644
+--- a/src/DPV.Domain/Contracts/Import/IDirectoryScannerService.cs
++++ b/src/DPV.Domain/Contracts/Import/IDirectoryScannerService.cs
+@@ -20,7 +20,11 @@ public sealed record ScanResult(
+     int TotalFiles,
+     TimeSpan Elapsed,
+     bool IsIncremental,
+-    IReadOnlyList<string> Errors)
++    IReadOnlyList<string> Errors,
++    int RetiredFiles = 0,
++    int RetiredModels = 0,
++    int RetiredReleases = 0,
++    int RetiredArtists = 0)
+ {
+     public bool Success => Errors.Count == 0;
+ }
+diff --git a/src/DPV.Infrastructure/Import/DirectoryScannerService.cs b/src/DPV.Infrastructure/Import/DirectoryScannerService.cs
+index 7b0b5c0..2177430 100644
+--- a/src/DPV.Infrastructure/Import/DirectoryScannerService.cs
++++ b/src/DPV.Infrastructure/Import/DirectoryScannerService.cs
+@@ -110,6 +110,7 @@ public sealed class DirectoryScannerService(
+         int totalReleases = 0;
+         int totalModels = 0;
+         int totalFiles = 0;
++        var scanCompleted = true;
+ 
+         string[] artistDirs;
+         try
+@@ -131,13 +132,17 @@ public sealed class DirectoryScannerService(
+         int processedArtists = 0;
+         foreach (var artistDir in artistDirs)
+         {
+-            if (cancellationToken.IsCancellationRequested) break;
++            if (cancellationToken.IsCancellationRequested)
++            {
++                scanCompleted = false;
++                break;
++            }
+             processedArtists++;
+ 
+             var artistName = new DirectoryInfo(artistDir).Name;
+             var artistNormalized = Path.GetFullPath(artistDir);
+ 
+-            // Tier 1: Artist
++            // Tier 1: Artist (idempotent by Name; reactivates retired rows)
+             var artistId = await UpsertArtistAsync(connection, artistName, artistNormalized, cancellationToken).ConfigureAwait(false);
+             totalArtists++;
+ 
+@@ -172,7 +177,11 @@ public sealed class DirectoryScannerService(
+ 
+             foreach (var releaseDir in releaseDirs)
+             {
+-                if (cancellationToken.IsCancellationRequested) break;
++                if (cancellationToken.IsCancellationRequested)
++                {
++                    scanCompleted = false;
++                    break;
++                }
+ 
+                 var releaseNormalized = Path.GetFullPath(releaseDir);
+                 var releaseName = new DirectoryInfo(releaseDir).Name;
+@@ -185,7 +194,7 @@ public sealed class DirectoryScannerService(
+                     continue;
+                 }
+ 
+-// Sibling and internal cover art discovery
++                // Sibling and internal cover art discovery (no DB access; safe outside the transaction)
+                 var coverArtPath = ResolveReleaseCoverArt(releaseDir, releaseName, siblingArtworkDirs);
+                 if (string.IsNullOrWhiteSpace(coverArtPath) && artworkService is not null)
+                 {
+@@ -203,31 +212,192 @@ public sealed class DirectoryScannerService(
+                     }
+                 }
+ 
+-                // Tier 2: Release
+-                var releaseId = await UpsertReleaseAsync(
+-                    connection, releaseName, artistId, releaseNormalized, coverArtPath, cancellationToken)
+-                    .ConfigureAwait(false);
+-                totalReleases++;
++                // Tier 2-4 upserts for this release run in one transaction so a
++                // crash mid-release cannot leave partial catalog state behind.
++                try
++                {
++                    using var transaction = connection.BeginTransaction();
++
++                    // Tier 2: Release (idempotent by Name+ArtistId; reactivates retired rows)
++                    var releaseId = await UpsertReleaseAsync(
++                        connection, transaction, releaseName, artistId, releaseNormalized, coverArtPath, cancellationToken)
++                        .ConfigureAwait(false);
++                    totalReleases++;
+ 
+-                // Tier 3 & 4: Models and Constituent Files
+-                var modelsAdded = await IngestModelsAndFilesAsync(
+-                    connection, releaseId, artistId, normalizedRoot, releaseDir, releaseName, coverArtPath, cancellationToken)
+-                    .ConfigureAwait(false);
++                    // Tier 3 & 4: Models and Constituent Files (idempotent by FolderPath / FilePath)
++                    var modelsAdded = await IngestModelsAndFilesAsync(
++                        connection, transaction, releaseId, artistId, normalizedRoot, releaseDir, releaseName, coverArtPath, cancellationToken)
++                        .ConfigureAwait(false);
+ 
+-                totalModels += modelsAdded.ModelsCount;
+-                totalFiles += modelsAdded.FilesCount;
++                    totalModels += modelsAdded.ModelsCount;
++                    totalFiles += modelsAdded.FilesCount;
+ 
+-                // Update ScanState
+-                await UpdateScanStateAsync(connection, releaseNormalized, releaseLastWrite, cancellationToken).ConfigureAwait(false);
++                    // Update ScanState
++                    await UpdateScanStateAsync(connection, transaction, releaseNormalized, releaseLastWrite, cancellationToken)
++                        .ConfigureAwait(false);
++
++                    transaction.Commit();
++                }
++                catch (OperationCanceledException)
++                {
++                    throw;
++                }
++                catch (Exception ex)
++                {
++                    errors.Add($"Failed to index release '{releaseDir}': {ex.Message}");
++                }
+ 
+                 progress?.Report(new ScanProgressReport(
+                     totalArtists, totalReleases, totalModels, totalFiles, releaseDir,
+                     (double)processedArtists / artistDirs.Length * 100));
+             }
++
++            if (!scanCompleted)
++            {
++                break;
++            }
++        }
++
++        // Reconciliation sweep: retire catalog rows whose files/folders no longer
++        // exist on disk. Scoped to this scan root so multi-root libraries are not
++        // affected by scanning a different root. Skipped when the scan was
++        // cancelled, because unvisited folders must not be mistaken for deleted.
++        var reconciliation = new ScanReconciliation(0, 0, 0, 0);
++        if (scanCompleted)
++        {
++            try
++            {
++                reconciliation = await ReconcileAsync(connection, normalizedRoot, cancellationToken).ConfigureAwait(false);
++            }
++            catch (OperationCanceledException)
++            {
++                throw;
++            }
++            catch (Exception ex)
++            {
++                errors.Add($"Reconciliation failed: {ex.Message}");
++            }
+         }
+ 
+         stopwatch.Stop();
+-        return new ScanResult(totalArtists, totalReleases, totalModels, totalFiles, stopwatch.Elapsed, incremental, errors);
++        return new ScanResult(
++            totalArtists, totalReleases, totalModels, totalFiles,
++            stopwatch.Elapsed, incremental, errors,
++            reconciliation.RetiredFiles, reconciliation.RetiredModels,
++            reconciliation.RetiredReleases, reconciliation.RetiredArtists);
++    }
++
++    /// <summary>
++    /// End-of-scan reconciliation. Retires (soft-deletes) rows whose backing
++    /// files or folders no longer exist on disk, bottom-up: Files, then Models
++    /// with no active files, then Releases with no active models, then Artists
++    /// with no active releases. Also drops ScanState rows for folders that have
++    /// disappeared. All checks are scoped to the scan root.
++    /// </summary>
++    private static async Task<ScanReconciliation> ReconcileAsync(
++        SqliteConnection connection,
++        string scanRoot,
++        CancellationToken cancellationToken)
++    {
++        var root = scanRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
++        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
++
++        // SQL-side root scoping must include the separator boundary, otherwise a
++        // scan of "C:\lib" would also reconcile rows under "C:\lib-extra".
++        var rootPrefix = root + Path.DirectorySeparatorChar;
++
++        using var transaction = connection.BeginTransaction();
++
++        // 1. Retire Files under the scan root that no longer exist on disk.
++        var activeFilePaths = (await connection.QueryAsync<string>(
++            new CommandDefinition(
++                "SELECT FilePath FROM Files WHERE IsActive = 1;",
++                transaction: transaction,
++                cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();
++
++        var missingFiles = activeFilePaths
++            .Where(p => IsUnderRoot(root, p, comparison) && !File.Exists(p))
++            .ToList();
++
++        if (missingFiles.Count > 0)
++        {
++            await connection.ExecuteAsync(new CommandDefinition(
++                "UPDATE Files SET IsActive = 0 WHERE FilePath = @Path;",
++                missingFiles.Select(p => new { Path = p }),
++                transaction: transaction,
++                cancellationToken: cancellationToken)).ConfigureAwait(false);
++        }
++
++        // 2. Retire Models under the scan root with no remaining active files.
++        // The separator boundary prevents a scan of "C:\lib" from touching
++        // rows under sibling roots such as "C:\lib-extra".
++        var retiredModels = await connection.ExecuteAsync(new CommandDefinition(
++            """
++            UPDATE Models SET IsActive = 0
++            WHERE IsActive = 1
++              AND FolderPath IS NOT NULL
++              AND substr(FolderPath, 1, @RootPrefixLength) = @RootPrefix
++              AND NOT EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = Models.Id AND f.IsActive = 1);
++            """,
++            new { RootPrefix = rootPrefix, RootPrefixLength = rootPrefix.Length },
++            transaction: transaction,
++            cancellationToken: cancellationToken)).ConfigureAwait(false);
++
++        // 3. Retire Releases under the scan root with no remaining active models.
++        var retiredReleases = await connection.ExecuteAsync(new CommandDefinition(
++            """
++            UPDATE Releases SET IsActive = 0
++            WHERE IsActive = 1
++              AND FolderPath IS NOT NULL
++              AND substr(FolderPath, 1, @RootPrefixLength) = @RootPrefix
++              AND NOT EXISTS (SELECT 1 FROM Models m WHERE m.ReleaseId = Releases.Id AND m.IsActive = 1);
++            """,
++            new { RootPrefix = rootPrefix, RootPrefixLength = rootPrefix.Length },
++            transaction: transaction,
++            cancellationToken: cancellationToken)).ConfigureAwait(false);
++
++        // 4. Retire Artists under the scan root with no remaining active releases.
++        var retiredArtists = await connection.ExecuteAsync(new CommandDefinition(
++            """
++            UPDATE Artists SET IsActive = 0
++            WHERE IsActive = 1
++              AND substr(FolderPath, 1, @RootPrefixLength) = @RootPrefix
++              AND NOT EXISTS (SELECT 1 FROM Releases r WHERE r.ArtistId = Artists.Id AND r.IsActive = 1);
++            """,
++            new { RootPrefix = rootPrefix, RootPrefixLength = rootPrefix.Length },
++            transaction: transaction,
++            cancellationToken: cancellationToken)).ConfigureAwait(false);
++
++        // 5. Drop ScanState rows for folders that have disappeared.
++        var scanStatePaths = (await connection.QueryAsync<string>(
++            new CommandDefinition(
++                "SELECT FolderPath FROM ScanState;",
++                transaction: transaction,
++                cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();
++
++        var staleScanStates = scanStatePaths
++            .Where(p => IsUnderRoot(root, p, comparison) && !Directory.Exists(p))
++            .ToList();
++
++        if (staleScanStates.Count > 0)
++        {
++            await connection.ExecuteAsync(new CommandDefinition(
++                "DELETE FROM ScanState WHERE FolderPath = @Path;",
++                staleScanStates.Select(p => new { Path = p }),
++                transaction: transaction,
++                cancellationToken: cancellationToken)).ConfigureAwait(false);
++        }
++
++        transaction.Commit();
++
++        return new ScanReconciliation(missingFiles.Count, retiredModels, retiredReleases, retiredArtists);
++    }
++
++    private static bool IsUnderRoot(string root, string path, StringComparison comparison)
++    {
++        return path.Length > root.Length
++            && (path[root.Length] == Path.DirectorySeparatorChar || path[root.Length] == Path.AltDirectorySeparatorChar)
++            && path.StartsWith(root, comparison);
+     }
+ 
+     private static (List<string> Releases, List<string> SiblingArtworks) ClassifyFolders(string[] subdirs)
+@@ -335,6 +505,7 @@ public sealed class DirectoryScannerService(
+ 
+     private async Task<(int ModelsCount, int FilesCount)> IngestModelsAndFilesAsync(
+         SqliteConnection connection,
++        SqliteTransaction transaction,
+         string releaseId,
+         string artistId,
+         string scanRoot,
+@@ -377,13 +548,12 @@ public sealed class DirectoryScannerService(
+             {
+                 var dirName = new DirectoryInfo(modelDir).Name;
+                 var scale = DetectScale(dirName) ?? DetectScale(releaseName);
+-var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
++                var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                 if (string.IsNullOrWhiteSpace(activeImg) && artworkService is not null)
+                 {
+                     try
+                     {
+-                        var res = await artworkService.ResolveModelArtworkAsync(
+-                            Guid.NewGuid(), modelDir, null, cancellationToken).ConfigureAwait(false);
++                        var res = await artworkService.ResolveModelArtworkAsync(Guid.NewGuid(), modelDir, null, cancellationToken).ConfigureAwait(false);
+                         if (!string.IsNullOrWhiteSpace(res.ResolvedPath))
+                         {
+                             activeImg = res.ResolvedPath;
+@@ -413,38 +583,86 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+ 
+         foreach (var m in modelsToIngest)
+         {
+-            var modelId = Guid.NewGuid().ToString("D");
+-
+-            // Tier 3: Model
+-            await connection.ExecuteAsync(
++            // Tier 3: Model — idempotent upsert keyed on the natural key FolderPath.
++            // The pre-v11 behavior minted a fresh GUID per scan and upserted on
++            // ON CONFLICT(Id), which could never fire; re-scans therefore duplicated
++            // every model row. FolderPath is stable for a given folder, so the row
++            // identity (and its GUID) now survives across scans.
++            // ORDER BY IsActive DESC: post-migration data can hold several rows for
++            // one folder (one active, the rest retired by the v11 dedup). Reactivating
++            // a retired sibling would trip UX_Models_FolderPath, so the active row
++            // always wins; a retired row is only revived when no active row exists.
++            var modelId = await connection.ExecuteScalarAsync<string>(
+                 new CommandDefinition(
+                     """
+-                    INSERT INTO Models (Id, Name, ScanRoot, ArtistId, ReleaseId, Scale, FolderPath, ActiveImagePath, CreatedAt)
+-                    VALUES (@Id, @Name, @ScanRoot, @ArtistId, @ReleaseId, @Scale, @FolderPath, @ActiveImagePath, @CreatedAt)
+-                    ON CONFLICT(Id) DO UPDATE SET
+-                        Name = excluded.Name,
+-                        ReleaseId = excluded.ReleaseId,
+-                        Scale = excluded.Scale,
+-                        FolderPath = excluded.FolderPath,
+-                        ActiveImagePath = excluded.ActiveImagePath;
++                    SELECT Id FROM Models
++                    WHERE FolderPath = @FolderPath
++                    ORDER BY IsActive DESC, CreatedAt DESC
++                    LIMIT 1;
+                     """,
+-                    new
+-                    {
+-                        Id = modelId,
+-                        Name = m.Name,
+-                        ScanRoot = scanRoot,
+-                        ArtistId = artistId,
+-                        ReleaseId = releaseId,
+-                        Scale = m.Scale,
+-                        FolderPath = m.FolderPath,
+-                        ActiveImagePath = m.ActiveImage,
+-                        CreatedAt = now
+-                    },
++                    new { m.FolderPath },
++                    transaction: transaction,
+                     cancellationToken: cancellationToken)).ConfigureAwait(false);
+ 
++            if (string.IsNullOrWhiteSpace(modelId))
++            {
++                modelId = Guid.NewGuid().ToString("D");
++                await connection.ExecuteAsync(
++                    new CommandDefinition(
++                        """
++                        INSERT INTO Models (Id, Name, ScanRoot, ArtistId, ReleaseId, Scale, FolderPath, ActiveImagePath, CreatedAt, IsActive, SourcePipeline)
++                        VALUES (@Id, @Name, @ScanRoot, @ArtistId, @ReleaseId, @Scale, @FolderPath, @ActiveImagePath, @CreatedAt, 1, 'v2')
++                        """,
++                        new
++                        {
++                            Id = modelId,
++                            m.Name,
++                            ScanRoot = scanRoot,
++                            ArtistId = artistId,
++                            ReleaseId = releaseId,
++                            m.Scale,
++                            m.FolderPath,
++                            ActiveImagePath = m.ActiveImage,
++                            CreatedAt = now
++                        },
++                        transaction: transaction,
++                        cancellationToken: cancellationToken)).ConfigureAwait(false);
++            }
++            else
++            {
++                await connection.ExecuteAsync(
++                    new CommandDefinition(
++                        """
++                        UPDATE Models
++                        SET Name = @Name,
++                            ScanRoot = @ScanRoot,
++                            ArtistId = @ArtistId,
++                            ReleaseId = @ReleaseId,
++                            Scale = @Scale,
++                            FolderPath = @FolderPath,
++                            ActiveImagePath = @ActiveImagePath,
++                            IsActive = 1,
++                            SourcePipeline = 'v2'
++                        WHERE Id = @Id
++                        """,
++                        new
++                        {
++                            Id = modelId,
++                            m.Name,
++                            ScanRoot = scanRoot,
++                            ArtistId = artistId,
++                            ReleaseId = releaseId,
++                            m.Scale,
++                            m.FolderPath,
++                            ActiveImagePath = m.ActiveImage
++                        },
++                        transaction: transaction,
++                        cancellationToken: cancellationToken)).ConfigureAwait(false);
++            }
++
+             modelsCount++;
+ 
+-            // Tier 4: Constituent Part Files
++            // Tier 4: Constituent Part Files (idempotent by FilePath)
+             foreach (var gf in m.GeometryFiles)
+             {
+                 var fileInfo = new FileInfo(gf);
+@@ -455,18 +673,21 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                 var ext = fileInfo.Extension.ToLowerInvariant();
+                 var size = fileInfo.Length;
+                 var modifiedUtc = fileInfo.LastWriteTimeUtc.ToString("o");
++                var contentHash = ComputeContentHash(normalizedPath, size);
+ 
+                 // Insert into Files
+                 await connection.ExecuteAsync(
+                     new CommandDefinition(
+                         """
+-                        INSERT INTO Files (Id, ModelId, FileName, FilePath, FileExtension, FileSize)
+-                        VALUES (@Id, @ModelId, @FileName, @FilePath, @FileExtension, @FileSize)
++                        INSERT INTO Files (Id, ModelId, FileName, FilePath, FileExtension, FileSize, ContentHash, IsActive)
++                        VALUES (@Id, @ModelId, @FileName, @FilePath, @FileExtension, @FileSize, @ContentHash, 1)
+                         ON CONFLICT(FilePath) DO UPDATE SET
+                             ModelId = excluded.ModelId,
+                             FileName = excluded.FileName,
+                             FileExtension = excluded.FileExtension,
+-                            FileSize = excluded.FileSize;
++                            FileSize = excluded.FileSize,
++                            ContentHash = excluded.ContentHash,
++                            IsActive = 1
+                         """,
+                         new
+                         {
+@@ -475,8 +696,10 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                             FileName = fileInfo.Name,
+                             FilePath = normalizedPath,
+                             FileExtension = ext,
+-                            FileSize = size
++                            FileSize = size,
++                            ContentHash = contentHash
+                         },
++                        transaction: transaction,
+                         cancellationToken: cancellationToken)).ConfigureAwait(false);
+ 
+                 // Sync into ModelFiles for backward compatibility and FTS search triggers
+@@ -487,18 +710,20 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                         VALUES (@ModelId, @FilePath, @ContentHash, @FileSize, @ModifiedAtUtc, 1)
+                         ON CONFLICT(NormalizedPath) DO UPDATE SET
+                             ModelId = excluded.ModelId,
++                            ContentHash = excluded.ContentHash,
+                             FileSizeBytes = excluded.FileSizeBytes,
+                             ModifiedAtUtc = excluded.ModifiedAtUtc,
+-                            IsActive = 1;
++                            IsActive = 1
+                         """,
+                         new
+                         {
+                             ModelId = modelId,
+                             FilePath = normalizedPath,
+-                            ContentHash = ComputeQuickHash(normalizedPath, size),
++                            ContentHash = contentHash,
+                             FileSize = size,
+                             ModifiedAtUtc = modifiedUtc
+                         },
++                        transaction: transaction,
+                         cancellationToken: cancellationToken)).ConfigureAwait(false);
+ 
+                 filesCount++;
+@@ -523,6 +748,28 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+         }
+     }
+ 
++    /// <summary>
++    /// Computes a real content-based hash (SHA-256 of file contents, edge-sampled
++    /// for large files) so duplicate detection works across paths and renames.
++    /// Falls back to the legacy path+size hash when the file cannot be opened.
++    /// </summary>
++    private static string ComputeContentHash(string filePath, long size)
++    {
++        try
++        {
++            using var stream = File.OpenRead(filePath);
++            return ContentHasher.Hash(stream, size);
++        }
++        catch (IOException)
++        {
++            return ComputeQuickHash(filePath, size);
++        }
++        catch (UnauthorizedAccessException)
++        {
++            return ComputeQuickHash(filePath, size);
++        }
++    }
++
+     public static string? DetectScale(string? text)
+     {
+         if (string.IsNullOrWhiteSpace(text)) return null;
+@@ -576,7 +823,11 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+         {
+             await connection.ExecuteAsync(
+                 new CommandDefinition(
+-                    "UPDATE Artists SET FolderPath = COALESCE(@FolderPath, FolderPath) WHERE Id = @Id;",
++                    """
++                    UPDATE Artists
++                    SET FolderPath = COALESCE(@FolderPath, FolderPath), IsActive = 1
++                    WHERE Id = @Id;
++                    """,
+                     new { Id = existingId, FolderPath = folderPath },
+                     cancellationToken: cancellationToken)).ConfigureAwait(false);
+             return existingId;
+@@ -589,7 +840,8 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                 INSERT INTO Artists (Id, Name, FolderPath)
+                 VALUES (@Id, @Name, @FolderPath)
+                 ON CONFLICT(Name) DO UPDATE SET
+-                    FolderPath = COALESCE(excluded.FolderPath, Artists.FolderPath);
++                    FolderPath = COALESCE(excluded.FolderPath, Artists.FolderPath),
++                    IsActive = 1;
+                 """,
+                 new { Id = newId, Name = name, FolderPath = folderPath },
+                 cancellationToken: cancellationToken)).ConfigureAwait(false);
+@@ -599,6 +851,7 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+ 
+     private static async Task<string> UpsertReleaseAsync(
+         SqliteConnection connection,
++        SqliteTransaction transaction,
+         string name,
+         string artistId,
+         string folderPath,
+@@ -609,6 +862,7 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+             new CommandDefinition(
+                 "SELECT Id FROM Releases WHERE Name = @Name AND ArtistId = @ArtistId;",
+                 new { Name = name, ArtistId = artistId },
++                transaction: transaction,
+                 cancellationToken: cancellationToken)).ConfigureAwait(false);
+ 
+         if (!string.IsNullOrWhiteSpace(existingId))
+@@ -618,10 +872,13 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                     """
+                     UPDATE Releases
+                     SET FolderPath = COALESCE(@FolderPath, FolderPath),
+-                        CoverImagePath = COALESCE(@CoverImagePath, CoverImagePath)
++                        CoverImagePath = COALESCE(@CoverImagePath, CoverImagePath),
++                        IsActive = 1,
++                        SourcePipeline = 'v2'
+                     WHERE Id = @Id;
+                     """,
+                     new { Id = existingId, FolderPath = folderPath, CoverImagePath = coverImagePath },
++                    transaction: transaction,
+                     cancellationToken: cancellationToken)).ConfigureAwait(false);
+             return existingId;
+         }
+@@ -631,11 +888,13 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+         await connection.ExecuteAsync(
+             new CommandDefinition(
+                 """
+-                INSERT INTO Releases (Id, Name, ArtistId, FolderPath, CoverImagePath, CreatedAt)
+-                VALUES (@Id, @Name, @ArtistId, @FolderPath, @CoverImagePath, @CreatedAt)
++                INSERT INTO Releases (Id, Name, ArtistId, FolderPath, CoverImagePath, CreatedAt, IsActive, SourcePipeline)
++                VALUES (@Id, @Name, @ArtistId, @FolderPath, @CoverImagePath, @CreatedAt, 1, 'v2')
+                 ON CONFLICT(Name, ArtistId) DO UPDATE SET
+                     FolderPath = COALESCE(excluded.FolderPath, Releases.FolderPath),
+-                    CoverImagePath = COALESCE(excluded.CoverImagePath, Releases.CoverImagePath);
++                    CoverImagePath = COALESCE(excluded.CoverImagePath, Releases.CoverImagePath),
++                    IsActive = 1,
++                    SourcePipeline = 'v2';
+                 """,
+                 new
+                 {
+@@ -646,6 +905,7 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                     CoverImagePath = coverImagePath,
+                     CreatedAt = now
+                 },
++                transaction: transaction,
+                 cancellationToken: cancellationToken)).ConfigureAwait(false);
+ 
+         return newId;
+@@ -653,6 +913,7 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+ 
+     private static async Task UpdateScanStateAsync(
+         SqliteConnection connection,
++        SqliteTransaction transaction,
+         string folderPath,
+         string directoryLastWriteUtc,
+         CancellationToken cancellationToken)
+@@ -672,6 +933,13 @@ var activeImg = FindBestImageInDirectory(modelDir) ?? releaseCoverArt;
+                     LastScannedUtc = DateTime.UtcNow.ToString("o"),
+                     DirectoryLastWriteUtc = directoryLastWriteUtc
+                 },
++                transaction: transaction,
+                 cancellationToken: cancellationToken)).ConfigureAwait(false);
+     }
++
++    private sealed record ScanReconciliation(
++        int RetiredFiles,
++        int RetiredModels,
++        int RetiredReleases,
++        int RetiredArtists);
+ }
+diff --git a/src/DPV.Infrastructure/Persistence/DapperCatalogQuery.cs b/src/DPV.Infrastructure/Persistence/DapperCatalogQuery.cs
+index fa05707..8964d05 100644
+--- a/src/DPV.Infrastructure/Persistence/DapperCatalogQuery.cs
++++ b/src/DPV.Infrastructure/Persistence/DapperCatalogQuery.cs
+@@ -52,7 +52,7 @@ public sealed class DapperCatalogQuery(
+                 COALESCE(m.ActiveImagePath, m.HeroPreviewPath, (SELECT mf3.NormalizedPath FROM ModelFiles mf3 WHERE mf3.ModelId = m.Id AND (mf3.NormalizedPath LIKE '%.png' OR mf3.NormalizedPath LIKE '%.jpg') LIMIT 1), r.CoverImagePath) AS ThumbnailPath,
+                 COALESCE(a.Name, '') AS ArtistName,
+                 COALESCE(c.Name, r.Name, '') AS CollectionName,
+-                CASE WHEN EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = m.Id) THEN (SELECT COUNT(*) FROM Files f WHERE f.ModelId = m.Id) ELSE COUNT(mf.Id) END AS AssetCount,
++                CASE WHEN EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = m.Id AND f.IsActive = 1) THEN (SELECT COUNT(*) FROM Files f WHERE f.ModelId = m.Id AND f.IsActive = 1) ELSE COUNT(mf.Id) END AS AssetCount,
+                 COALESCE(m.ConfidenceScore, 1.0) AS ConfidenceScore,
+                 COALESCE(m.IsFavorite, 0) AS IsFavorite
+             FROM Models m
+@@ -60,7 +60,8 @@ public sealed class DapperCatalogQuery(
+             LEFT JOIN Artists a ON a.Id = m.ArtistId
+             LEFT JOIN Collections c ON c.Id = m.CollectionId
+             LEFT JOIN Releases r ON r.Id = m.ReleaseId
+-            WHERE (@IncludeInactive = 1 OR mf.IsActive IS NULL OR mf.IsActive = 1)
++            WHERE m.IsActive = 1
++              AND (@IncludeInactive = 1 OR mf.IsActive IS NULL OR mf.IsActive = 1)
+               AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+               AND (@ReleaseId IS NULL OR m.ReleaseId = @ReleaseId)
+               AND (@ArtistFilter IS NULL OR lower(a.Name) = lower(@ArtistFilter))
+@@ -176,7 +177,9 @@ public sealed class DapperCatalogQuery(
+                 SELECT a.Name, COUNT(DISTINCT m.Id) AS ModelCount, COALESCE(a.IsFavorite, 0) AS IsFavorite, a.Id
+                 FROM Models m
+                 INNER JOIN Artists a ON a.Id = m.ArtistId
+-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
++                WHERE a.IsActive = 1
++                  AND m.IsActive = 1
++                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                 GROUP BY a.Id, a.Name, a.IsFavorite
+                 ORDER BY a.Name ASC;
+                 """,
+@@ -212,7 +215,8 @@ public sealed class DapperCatalogQuery(
+                 SELECT c.Name, COUNT(DISTINCT m.Id) AS ModelCount, c.Description
+                 FROM Models m
+                 INNER JOIN Collections c ON c.Id = m.CollectionId
+-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
++                WHERE m.IsActive = 1
++                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                 GROUP BY c.Name, c.Description
+                 ORDER BY c.Name ASC;
+                 """,
+@@ -241,7 +245,8 @@ public sealed class DapperCatalogQuery(
+                 FROM Tags t
+                 INNER JOIN ModelTags mt ON mt.TagId = t.Id
+                 INNER JOIN Models m ON m.Id = mt.ModelId
+-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
++                WHERE m.IsActive = 1
++                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                 GROUP BY t.Name
+                 ORDER BY t.Name ASC;
+                 """,
+@@ -310,7 +315,8 @@ public sealed class DapperCatalogQuery(
+                 """
+                 SELECT COUNT(*)
+                 FROM Models m
+-                WHERE m.IsFavorite = 1
++                WHERE m.IsActive = 1
++                  AND m.IsFavorite = 1
+                   AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot);
+                 """,
+                 new { ScanRoot = normalizedScanRoot },
+diff --git a/src/DPV.Infrastructure/Persistence/DapperModelDetailRepository.cs b/src/DPV.Infrastructure/Persistence/DapperModelDetailRepository.cs
+index 749130d..b8ff598 100644
+--- a/src/DPV.Infrastructure/Persistence/DapperModelDetailRepository.cs
++++ b/src/DPV.Infrastructure/Persistence/DapperModelDetailRepository.cs
+@@ -47,12 +47,12 @@ public sealed class DapperModelDetailRepository(
+                 SELECT FilePath, FileSize AS FileSizeBytes, (upper(COALESCE(NULLIF(substr(FileExtension, 2), ''), FileExtension)) || ' • ' || printf('%.2f MB', FileSize / 1048576.0)) AS FileHash,
+                        '' AS LastModified, 1 AS IsActive
+                 FROM Files
+-                WHERE ModelId = @Id
++                WHERE ModelId = @Id AND IsActive = 1
+                 UNION ALL
+                 SELECT NormalizedPath AS FilePath, FileSizeBytes, ContentHash AS FileHash,
+                        ModifiedAtUtc AS LastModified, IsActive
+                 FROM ModelFiles
+-                WHERE ModelId = @Id AND NOT EXISTS (SELECT 1 FROM Files WHERE ModelId = @Id)
++                WHERE ModelId = @Id AND NOT EXISTS (SELECT 1 FROM Files WHERE ModelId = @Id AND IsActive = 1)
+                 ORDER BY FilePath
+                 """,
+                 new { Id = id },
+diff --git a/src/DPV.Infrastructure/Persistence/DapperReleaseRepository.cs b/src/DPV.Infrastructure/Persistence/DapperReleaseRepository.cs
+index b7072a6..daf31dd 100644
+--- a/src/DPV.Infrastructure/Persistence/DapperReleaseRepository.cs
++++ b/src/DPV.Infrastructure/Persistence/DapperReleaseRepository.cs
+@@ -47,8 +47,9 @@ public sealed class DapperReleaseRepository(
+                 r.ArtistId
+             FROM Releases r
+             LEFT JOIN Artists a ON a.Id = r.ArtistId
+-            LEFT JOIN Models m ON m.ReleaseId = r.Id
+-            WHERE (@OnlyFavorites = 0 OR r.IsFavorite = 1)
++            LEFT JOIN Models m ON m.ReleaseId = r.Id AND m.IsActive = 1
++            WHERE r.IsActive = 1
++              AND (@OnlyFavorites = 0 OR r.IsFavorite = 1)
+               AND (@ArtistId IS NULL OR r.ArtistId = @ArtistId)
+               AND (@ArtistName IS NULL OR lower(a.Name) = lower(@ArtistName))
+               AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL)
+@@ -153,8 +154,9 @@ public sealed class DapperReleaseRepository(
+                 COUNT(DISTINCT m.Id) AS TotalModelsInReleases,
+                 COUNT(DISTINCT CASE WHEN r.IsFavorite = 1 THEN r.Id ELSE NULL END) AS FavoritedReleases
+             FROM Releases r
+-            LEFT JOIN Models m ON m.ReleaseId = r.Id
+-            WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL);
++            LEFT JOIN Models m ON m.ReleaseId = r.Id AND m.IsActive = 1
++            WHERE r.IsActive = 1
++              AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL);
+             """;
+ 
+         var statRow = await connection.QuerySingleOrDefaultAsync<dynamic>(
+@@ -201,6 +203,7 @@ public sealed class DapperReleaseRepository(
+                 LEFT JOIN Artists a ON a.Id = r.ArtistId
+                 LEFT JOIN Models m ON m.ReleaseId = r.Id
+                 WHERE r.Id = @Id
++                  AND r.IsActive = 1
+                 GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.FolderPath, r.IsFavorite, r.ReleaseDate, r.ArtistId;
+                 """,
+                 new { Id = idStr },
+@@ -238,6 +241,7 @@ public sealed class DapperReleaseRepository(
+                 LEFT JOIN Artists a ON a.Id = m.ArtistId
+                 LEFT JOIN Collections c ON c.Id = m.CollectionId
+                 WHERE m.ReleaseId = @Id
++                  AND m.IsActive = 1
+                   AND mf.IsActive = 1
+                 GROUP BY m.Id, m.Name, m.HeroPreviewPath, m.ConfidenceScore, m.IsFavorite, m.CreatedAt, a.Name, c.Name
+                 ORDER BY m.Name ASC;
+diff --git a/src/DPV.Infrastructure/Persistence/MigrationRunner.cs b/src/DPV.Infrastructure/Persistence/MigrationRunner.cs
+index 89251d0..7edbcf1 100644
+--- a/src/DPV.Infrastructure/Persistence/MigrationRunner.cs
++++ b/src/DPV.Infrastructure/Persistence/MigrationRunner.cs
+@@ -5,7 +5,7 @@ namespace DPV.Infrastructure.Persistence;
+ 
+ public sealed class MigrationRunner
+ {
+-    public const int CurrentSchemaVersion = 10;
++    public const int CurrentSchemaVersion = 11;
+     private const string MigrationTableName = "DPVSchemaMigrations";
+ 
+     public async Task MigrateAsync(
+@@ -91,6 +91,12 @@ public sealed class MigrationRunner
+             await InsertVersionAsync(connection, transaction, 10, cancellationToken).ConfigureAwait(false);
+         }
+ 
++        if (currentVersion < 11)
++        {
++            await MigrateToV11Async(connection, transaction, cancellationToken).ConfigureAwait(false);
++            await InsertVersionAsync(connection, transaction, 11, cancellationToken).ConfigureAwait(false);
++        }
++
+         await SetUserVersionAsync(connection, transaction, CurrentSchemaVersion, cancellationToken)
+             .ConfigureAwait(false);
+         transaction.Commit();
+@@ -519,6 +525,72 @@ public sealed class MigrationRunner
+         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+     }
+ 
++    /// <summary>
++    /// Schema v11 — idempotent identity and soft-delete tombstones for the 4-tier catalog.
++    /// Adds IsActive flags to all four tiers, SourcePipeline lineage columns, a real
++    /// content hash column on Files, and a natural-key uniqueness constraint on
++    /// Models(FolderPath) so re-scans upsert instead of duplicating rows. Rows written
++    /// by the legacy v1 flat pipeline (FolderPath IS NULL) are retired (IsActive = 0)
++    /// rather than deleted; they are re-derivable by rescanning with the v2 scanner.
++    /// </summary>
++    private static async Task MigrateToV11Async(
++        SqliteConnection connection,
++        SqliteTransaction transaction,
++        CancellationToken cancellationToken)
++    {
++        // Tombstone flags (soft delete) for every tier.
++        await AddColumnIfNotExistsAsync(connection, transaction, "Artists", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
++        await AddColumnIfNotExistsAsync(connection, transaction, "Releases", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
++        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
++        await AddColumnIfNotExistsAsync(connection, transaction, "Files", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
++
++        // Lineage: which pipeline wrote this row.
++        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "SourcePipeline", "TEXT NOT NULL DEFAULT 'v2'", cancellationToken).ConfigureAwait(false);
++        await AddColumnIfNotExistsAsync(connection, transaction, "Releases", "SourcePipeline", "TEXT NOT NULL DEFAULT 'v2'", cancellationToken).ConfigureAwait(false);
++
++        // Real content hash for Tier-4 files (path+size placeholder hashes made
++        // duplicate detection meaningless for v2-scanned libraries).
++        await AddColumnIfNotExistsAsync(connection, transaction, "Files", "ContentHash", "TEXT", cancellationToken).ConfigureAwait(false);
++
++        await using var command = connection.CreateCommand();
++        command.Transaction = transaction;
++        command.CommandText = """
++            -- Retire legacy v1 rows. The v2 scanner always sets FolderPath; the v1
++            -- pipeline never did, so FolderPath IS NULL is a safe lineage marker.
++            UPDATE Models
++            SET SourcePipeline = 'legacy', IsActive = 0
++            WHERE FolderPath IS NULL;
++
++            UPDATE Releases
++            SET SourcePipeline = 'legacy', IsActive = 0
++            WHERE FolderPath IS NULL;
++
++            -- Deactivate duplicate active Models that share a FolderPath (created by
++            -- the pre-v11 per-scan GUID insert bug), keeping the newest row per folder.
++            UPDATE Models SET IsActive = 0
++            WHERE Id IN (
++                SELECT Id FROM (
++                    SELECT Id,
++                           ROW_NUMBER() OVER (
++                               PARTITION BY FolderPath
++                               ORDER BY CreatedAt DESC, rowid DESC) AS rn
++                    FROM Models
++                    WHERE IsActive = 1 AND FolderPath IS NOT NULL
++                )
++                WHERE rn > 1
++            );
++
++            -- Natural-key uniqueness: one active Model per folder path. This is the
++            -- constraint that makes scanner upserts idempotent.
++            CREATE UNIQUE INDEX IF NOT EXISTS UX_Models_FolderPath
++                ON Models(FolderPath) WHERE IsActive = 1 AND FolderPath IS NOT NULL;
++
++            CREATE INDEX IF NOT EXISTS IX_Files_ContentHash
++                ON Files(ContentHash) WHERE IsActive = 1;
++            """;
++        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
++    }
++
+     private static async Task AddColumnIfNotExistsAsync(
+         SqliteConnection connection,
+         SqliteTransaction transaction,
+diff --git a/src/DPV.UI/ViewModels/MainDashboardViewModel.cs b/src/DPV.UI/ViewModels/MainDashboardViewModel.cs
+index 14ee868..d97a8fb 100644
+--- a/src/DPV.UI/ViewModels/MainDashboardViewModel.cs
++++ b/src/DPV.UI/ViewModels/MainDashboardViewModel.cs
+@@ -90,7 +90,10 @@ public class MainDashboardViewModel : DashboardViewModel
+         try
+         {
+             var result = await _directoryScanner.BulkScanAsync(RootPath, progress, _scanCancellation.Token).ConfigureAwait(true);
+-            CurrentStatusText = $"Scan complete. Added {result.TotalArtists} Artists, {result.TotalReleases} Releases, {result.TotalModels} Models, {result.TotalFiles} Files.";
++            var retiredSummary = result.RetiredModels + result.RetiredReleases + result.RetiredArtists > 0
++                ? $" Retired {result.RetiredFiles} files, {result.RetiredModels} models, {result.RetiredReleases} releases, {result.RetiredArtists} artists (no longer on disk)."
++                : string.Empty;
++            CurrentStatusText = $"Scan complete. Added {result.TotalArtists} Artists, {result.TotalReleases} Releases, {result.TotalModels} Models, {result.TotalFiles} Files.{retiredSummary}";
+             ProgressPercentage = 100;
+             await LoadCatalogAsync().ConfigureAwait(true);
+         }
+diff --git a/tests/DPV.Tests/Unit/Infrastructure/ScannerIdempotencyAndReconciliationTests.cs b/tests/DPV.Tests/Unit/Infrastructure/ScannerIdempotencyAndReconciliationTests.cs
+new file mode 100644
+index 0000000..54db909
+--- /dev/null
++++ b/tests/DPV.Tests/Unit/Infrastructure/ScannerIdempotencyAndReconciliationTests.cs
+@@ -0,0 +1,612 @@
++using System;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using Dapper;
++using DPV.Domain.Contracts.Catalog;
++using DPV.Domain.Contracts.Import;
++using DPV.Infrastructure.Import;
++using DPV.Infrastructure.Persistence;
++using Microsoft.Data.Sqlite;
++using Xunit;
++
++namespace DPV.Tests.Unit.Infrastructure;
++
++/// <summary>
++/// Sprint A regression suite: scan idempotency (schema v11 natural keys),
++/// end-of-scan reconciliation, real content hashing, and the v10 -> v11
++/// legacy-row retirement migration.
++/// </summary>
++public sealed class ScannerIdempotencyAndReconciliationTests : IDisposable
++{
++    private readonly string _testRoot;
++    private readonly string _libraryRoot;
++    private readonly string _databasePath;
++    private readonly SqliteConnectionFactory _connectionFactory;
++    private readonly MigrationRunner _migrationRunner;
++    private readonly DirectoryScannerService _scanner;
++
++    public ScannerIdempotencyAndReconciliationTests()
++    {
++        _testRoot = Path.Combine(Path.GetTempPath(), "dpv-sprint-a-" + Guid.NewGuid().ToString("N"));
++        _libraryRoot = Path.Combine(_testRoot, "library");
++        _databasePath = Path.Combine(_testRoot, "test.db");
++        Directory.CreateDirectory(_libraryRoot);
++
++        _connectionFactory = new SqliteConnectionFactory(_databasePath);
++        _migrationRunner = new MigrationRunner();
++
++        using var conn = _connectionFactory.CreateConnection();
++        conn.Open();
++        _migrationRunner.MigrateAsync(conn).GetAwaiter().GetResult();
++
++        _scanner = new DirectoryScannerService(_connectionFactory, _migrationRunner);
++    }
++
++    public void Dispose()
++    {
++        SqliteConnection.ClearAllPools();
++        try
++        {
++            if (Directory.Exists(_testRoot))
++            {
++                Directory.Delete(_testRoot, true);
++            }
++        }
++        catch
++        {
++        }
++    }
++
++    // ---------------------------------------------------------------------
++    // Idempotency
++    // ---------------------------------------------------------------------
++
++    [Fact]
++    public async Task Rescan_SameLibrary_DoesNotDuplicateAnyTier()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildXalatathFixtureAsync(ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var first = await SnapshotCountsAsync(ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var third = await SnapshotCountsAsync(ct);
++
++        Assert.Equal(first, third);
++        Assert.Equal(1, third.ActiveArtists);
++        Assert.Equal(1, third.ActiveReleases);
++        Assert.Equal(2, third.ActiveModels);
++        Assert.Equal(4, third.ActiveFiles);
++    }
++
++    [Fact]
++    public async Task Rescan_PreservesModelIdentity()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildXalatathFixtureAsync(ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var idsBefore = await GetActiveModelIdsAsync(ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var idsAfter = await GetActiveModelIdsAsync(ct);
++
++        Assert.Equal(idsBefore.OrderBy(x => x), idsAfter.OrderBy(x => x));
++    }
++
++    [Fact]
++    public async Task Rescan_PreservesUserMetadataOnModels()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildXalatathFixtureAsync(ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        await using (var conn = _connectionFactory.CreateConnection())
++        {
++            await conn.OpenAsync(ct);
++            await conn.ExecuteAsync(new CommandDefinition(
++                "UPDATE Models SET IsFavorite = 1, PrintNotes = 'printed in PETG' WHERE Name LIKE '%1-6%';",
++                cancellationToken: ct));
++        }
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        await using var verify = _connectionFactory.CreateConnection();
++        await verify.OpenAsync(ct);
++        var row = await verify.QuerySingleAsync<(long IsFavorite, string PrintNotes)>(new CommandDefinition(
++            "SELECT IsFavorite, PrintNotes FROM Models WHERE Name LIKE '%1-6%' AND IsActive = 1;",
++            cancellationToken: ct));
++
++        Assert.Equal(1, row.IsFavorite);
++        Assert.Equal("printed in PETG", row.PrintNotes);
++    }
++
++    [Fact]
++    public async Task Rescan_ThroughCatalogQuery_ReturnsSameModelCount()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildXalatathFixtureAsync(ct);
++        var query = new DapperCatalogQuery(_connectionFactory, _migrationRunner);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var first = await query.SearchModelsAsync(new ModelQueryParameters(), ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var third = await query.SearchModelsAsync(new ModelQueryParameters(), ct);
++
++        Assert.Equal(first.Count, third.Count);
++        Assert.Equal(2, third.Count);
++    }
++
++    // ---------------------------------------------------------------------
++    // Reconciliation
++    // ---------------------------------------------------------------------
++
++    [Fact]
++    public async Task Reconcile_DeletedFile_RetiresFileButKeepsModel()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var modelDir = await BuildSingleModelAsync("Artist", "Release", "Model", ["a.stl", "b.stl"], ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        File.Delete(Path.Combine(modelDir, "b.stl"));
++        var result = await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(1, result.RetiredFiles);
++        Assert.Equal(0, result.RetiredModels);
++        Assert.Equal(1, counts.ActiveModels);
++        Assert.Equal(1, counts.ActiveFiles);
++    }
++
++    [Fact]
++    public async Task Reconcile_DeletedModelFolder_RetiresModelAndCascadesUpwardWhenEmpty()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var modelDir = await BuildSingleModelAsync("Artist", "Release", "Model", ["a.stl"], ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        Directory.Delete(Path.Combine(_libraryRoot, "Artist", "Release"), recursive: true);
++        Assert.False(Directory.Exists(modelDir));
++
++        var result = await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(1, result.RetiredFiles);
++        Assert.Equal(1, result.RetiredModels);
++        Assert.Equal(1, result.RetiredReleases);
++        Assert.Equal(1, result.RetiredArtists);
++        Assert.Equal(0, counts.ActiveFiles);
++        Assert.Equal(0, counts.ActiveModels);
++        Assert.Equal(0, counts.ActiveReleases);
++        Assert.Equal(0, counts.ActiveArtists);
++
++        // Soft delete: rows still exist for audit / re-activation.
++        Assert.Equal(1, counts.TotalModels);
++    }
++
++    [Fact]
++    public async Task Reconcile_RemovedRelease_HidesCardFromReleaseQuery()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildSingleModelAsync("Artist", "Keeper", "Model", ["k.stl"], ct);
++        await BuildSingleModelAsync("Artist", "Goner", "Model", ["g.stl"], ct);
++        var repo = new DapperReleaseRepository(_connectionFactory, _migrationRunner);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        Assert.Equal(2, (await repo.GetReleasesAsync(new ReleaseQueryParameters(), ct)).Count);
++
++        Directory.Delete(Path.Combine(_libraryRoot, "Artist", "Goner"), recursive: true);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        var releases = await repo.GetReleasesAsync(new ReleaseQueryParameters(), ct);
++        var single = Assert.Single(releases);
++        Assert.Equal("Keeper", single.Name);
++    }
++
++    [Fact]
++    public async Task Reconcile_RestoredFolder_ReactivatesSameRows()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildSingleModelAsync("Artist", "Release", "Model", ["a.stl"], ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var originalIds = await GetActiveModelIdsAsync(ct);
++
++        var releaseDir = Path.Combine(_libraryRoot, "Artist", "Release");
++        var backup = Path.Combine(_testRoot, "backup");
++        Directory.Move(releaseDir, backup);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        Assert.Equal(0, (await SnapshotCountsAsync(ct)).ActiveModels);
++
++        Directory.Move(backup, releaseDir);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(1, counts.ActiveModels);
++        Assert.Equal(1, counts.TotalModels); // no new row; the retired one was reactivated
++        Assert.Equal(originalIds, await GetActiveModelIdsAsync(ct));
++    }
++
++    [Fact]
++    public async Task Reconcile_IsScopedToScanRoot_OtherRootsUntouched()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var rootA = Path.Combine(_testRoot, "rootA");
++        var rootB = Path.Combine(_testRoot, "rootB");
++        await BuildModelUnderAsync(rootA, "ArtistA", "ReleaseA", "Model", ["a.stl"], ct);
++        await BuildModelUnderAsync(rootB, "ArtistB", "ReleaseB", "Model", ["b.stl"], ct);
++
++        await _scanner.BulkScanAsync(rootA, cancellationToken: ct);
++        await _scanner.BulkScanAsync(rootB, cancellationToken: ct);
++
++        // Re-scanning root A must not retire anything that lives under root B.
++        var result = await _scanner.BulkScanAsync(rootA, cancellationToken: ct);
++
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(0, result.RetiredFiles + result.RetiredModels + result.RetiredReleases + result.RetiredArtists);
++        Assert.Equal(2, counts.ActiveModels);
++        Assert.Equal(2, counts.ActiveFiles);
++    }
++
++    [Fact]
++    public async Task Reconcile_CancelledScan_DoesNotRetireUnvisitedRows()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await BuildSingleModelAsync("Artist", "Release", "Model", ["a.stl"], ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        // Cancel mid-scan: progress fires per artist before the release loop,
++        // so the scan aborts without re-visiting rows, and reconciliation
++        // (which would retire anything not re-visited) must be skipped.
++        using var cts = new CancellationTokenSource();
++        var result = await _scanner.BulkScanAsync(_libraryRoot, new CancellingProgress(cts), cts.Token);
++
++        Assert.True(result.Success);
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(0, result.RetiredModels);
++        Assert.Equal(0, result.RetiredFiles);
++        Assert.Equal(1, counts.ActiveModels);
++        Assert.Equal(1, counts.ActiveFiles);
++    }
++
++    [Fact]
++    public async Task Reconcile_DoesNotRetireSiblingFolderSharingNamePrefix()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        // "lib" vs "lib-extra": a naive prefix check (StartsWith / substr
++        // without a separator boundary) would treat the second as being under
++        // the first. The file under lib-extra is deleted so its model WOULD be
++        // retired by a scan of lib if scoping were broken.
++        var rootShort = Path.Combine(_testRoot, "lib");
++        var rootLong = Path.Combine(_testRoot, "lib-extra");
++        await BuildModelUnderAsync(rootShort, "A", "R", "Model", ["s.stl"], ct);
++        var longModel = await BuildModelUnderAsync(rootLong, "B", "R2", "Model", ["l.stl"], ct);
++
++        await _scanner.BulkScanAsync(rootShort, cancellationToken: ct);
++        await _scanner.BulkScanAsync(rootLong, cancellationToken: ct);
++        Assert.Equal(2, (await SnapshotCountsAsync(ct)).ActiveModels);
++
++        File.Delete(Path.Combine(longModel, "l.stl"));
++        var result = await _scanner.BulkScanAsync(rootShort, cancellationToken: ct);
++
++        // Reconciliation is scoped to the scan root: the deleted lib-extra file
++        // and its model are outside "lib" and must not be retired by this scan.
++        // (The stale file row is cleaned up by the next scan of lib-extra.)
++        Assert.Equal(0, result.RetiredFiles);
++        Assert.Equal(0, result.RetiredModels);
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(2, counts.ActiveModels);
++        Assert.Equal(2, counts.ActiveFiles);
++
++        // Scanning lib-extra itself retires the stale row — scoped as expected.
++        var longResult = await _scanner.BulkScanAsync(rootLong, cancellationToken: ct);
++        Assert.Equal(1, longResult.RetiredFiles);
++        Assert.Equal(1, longResult.RetiredModels);
++        var after = await SnapshotCountsAsync(ct);
++        Assert.Equal(1, after.ActiveModels);
++        Assert.Equal(1, after.ActiveFiles);
++    }
++
++    private sealed class CancellingProgress(CancellationTokenSource cts) : IProgress<ScanProgressReport>
++    {
++        public void Report(ScanProgressReport value) => cts.Cancel();
++    }
++
++    // ---------------------------------------------------------------------
++    // Content hash
++    // ---------------------------------------------------------------------
++
++    [Fact]
++    public async Task Scan_IdenticalContentAtDifferentPaths_ProducesSameContentHash()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var bytes = new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1 };
++        var dirA = Path.Combine(_libraryRoot, "Artist", "ReleaseA", "ModelA");
++        var dirB = Path.Combine(_libraryRoot, "Artist", "ReleaseB", "ModelB");
++        Directory.CreateDirectory(dirA);
++        Directory.CreateDirectory(dirB);
++        await File.WriteAllBytesAsync(Path.Combine(dirA, "same.stl"), bytes, ct);
++        await File.WriteAllBytesAsync(Path.Combine(dirB, "copy.stl"), bytes, ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++        var hashes = (await conn.QueryAsync<string>(new CommandDefinition(
++            "SELECT ContentHash FROM Files WHERE IsActive = 1;", cancellationToken: ct))).ToList();
++
++        Assert.Equal(2, hashes.Count);
++        Assert.All(hashes, h => Assert.False(string.IsNullOrWhiteSpace(h)));
++        Assert.Single(hashes.Distinct());
++    }
++
++    [Fact]
++    public async Task Scan_DifferentContentSameSize_ProducesDifferentContentHash()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var dir = Path.Combine(_libraryRoot, "Artist", "Release", "Model");
++        Directory.CreateDirectory(dir);
++        await File.WriteAllBytesAsync(Path.Combine(dir, "one.stl"), [1, 2, 3], ct);
++        await File.WriteAllBytesAsync(Path.Combine(dir, "two.stl"), [3, 2, 1], ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++        var hashes = (await conn.QueryAsync<string>(new CommandDefinition(
++            "SELECT ContentHash FROM Files WHERE IsActive = 1;", cancellationToken: ct))).ToList();
++
++        Assert.Equal(2, hashes.Distinct().Count());
++    }
++
++    [Fact]
++    public async Task Scan_ModifiedFileContent_UpdatesContentHashOnRescan()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var dir = await BuildSingleModelAsync("Artist", "Release", "Model", ["a.stl"], ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var before = await GetSingleFileHashAsync(ct);
++
++        await File.WriteAllBytesAsync(Path.Combine(dir, "a.stl"), [42, 42, 42, 42], ct);
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        var after = await GetSingleFileHashAsync(ct);
++
++        Assert.NotEqual(before, after);
++    }
++
++    // ---------------------------------------------------------------------
++    // Mixed-state / failure isolation
++    // ---------------------------------------------------------------------
++
++    [Fact]
++    public async Task Scan_MovedFileBetweenModels_RepointsFileWithoutDuplicating()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var releaseDir = Path.Combine(_libraryRoot, "Artist", "Release");
++        var dir16 = Path.Combine(releaseDir, "Figure 1-6 scale");
++        var dir110 = Path.Combine(releaseDir, "Figure 1-10 scale");
++        Directory.CreateDirectory(dir16);
++        Directory.CreateDirectory(dir110);
++        await File.WriteAllBytesAsync(Path.Combine(dir16, "torso.stl"), [1], ct);
++        await File.WriteAllBytesAsync(Path.Combine(dir110, "base.stl"), [2], ct);
++
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++        File.Move(Path.Combine(dir16, "torso.stl"), Path.Combine(dir110, "torso.stl"));
++        await _scanner.BulkScanAsync(_libraryRoot, cancellationToken: ct);
++
++        var counts = await SnapshotCountsAsync(ct);
++        Assert.Equal(2, counts.ActiveFiles);
++        // The 1-6 folder now has no geometry, so its model is retired.
++        Assert.Equal(1, counts.ActiveModels);
++    }
++
++    // ---------------------------------------------------------------------
++    // Migration v10 -> v11
++    // ---------------------------------------------------------------------
++
++    [Fact]
++    public async Task Migration_V11_AddsColumnsAndIndexes()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++
++        Assert.Equal(11, MigrationRunner.CurrentSchemaVersion);
++        foreach (var (table, column) in new[]
++                 {
++                     ("Artists", "IsActive"), ("Releases", "IsActive"), ("Models", "IsActive"), ("Files", "IsActive"),
++                     ("Models", "SourcePipeline"), ("Releases", "SourcePipeline"), ("Files", "ContentHash")
++                 })
++        {
++            Assert.True(await ColumnExistsAsync(conn, table, column, ct), $"{table}.{column} missing");
++        }
++
++        var indexes = (await conn.QueryAsync<string>(new CommandDefinition(
++            "SELECT name FROM sqlite_master WHERE type = 'index';", cancellationToken: ct))).ToList();
++        Assert.Contains("UX_Models_FolderPath", indexes);
++        Assert.Contains("IX_Files_ContentHash", indexes);
++    }
++
++    [Fact]
++    public async Task Migration_V11_RetiresLegacyRowsAndDeduplicatesFolderPaths()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        var path = Path.Combine(_testRoot, "legacy.db");
++        var factory = new SqliteConnectionFactory(path);
++
++        await using (var conn = factory.CreateConnection())
++        {
++            await conn.OpenAsync(ct);
++            // Build a database at schema v10 by applying all migrations then rolling back v11.
++            await new MigrationRunner().MigrateAsync(conn, ct);
++            await DowngradeToV10Async(conn, ct);
++
++            // Legacy v1 rows: no FolderPath, no ReleaseId.
++            await conn.ExecuteAsync(new CommandDefinition(
++                """
++                INSERT INTO Models (Id, Name, ScanRoot, CreatedAt) VALUES
++                    ('legacy-1', 'Torso', 'c:\lib', '2026-01-01T00:00:00Z'),
++                    ('legacy-2', 'Cape',  'c:\lib', '2026-01-01T00:00:00Z');
++                INSERT INTO Artists (Id, Name, FolderPath) VALUES ('a1', 'Artist', 'c:\lib\Artist');
++                INSERT INTO Releases (Id, Name, ArtistId, FolderPath, CreatedAt)
++                    VALUES ('r1', 'Release', 'a1', 'c:\lib\Artist\Release', '2026-01-01T00:00:00Z');
++                -- Three duplicate v2 rows for one folder (the per-scan GUID bug).
++                INSERT INTO Models (Id, Name, ScanRoot, ArtistId, ReleaseId, FolderPath, CreatedAt) VALUES
++                    ('dup-old',  'Model', 'c:\lib', 'a1', 'r1', 'c:\lib\Artist\Release\Model', '2026-01-01T00:00:00Z'),
++                    ('dup-mid',  'Model', 'c:\lib', 'a1', 'r1', 'c:\lib\Artist\Release\Model', '2026-02-01T00:00:00Z'),
++                    ('dup-new',  'Model', 'c:\lib', 'a1', 'r1', 'c:\lib\Artist\Release\Model', '2026-03-01T00:00:00Z');
++                """,
++                cancellationToken: ct));
++        }
++
++        await using (var conn = factory.CreateConnection())
++        {
++            await conn.OpenAsync(ct);
++            await new MigrationRunner().MigrateAsync(conn, ct); // applies v11
++        }
++
++        await using var verify = factory.CreateConnection();
++        await verify.OpenAsync(ct);
++
++        var legacyActive = await verify.ExecuteScalarAsync<long>(new CommandDefinition(
++            "SELECT COUNT(*) FROM Models WHERE Id IN ('legacy-1','legacy-2') AND IsActive = 1;", cancellationToken: ct));
++        Assert.Equal(0, legacyActive);
++
++        var legacyLineage = await verify.ExecuteScalarAsync<long>(new CommandDefinition(
++            "SELECT COUNT(*) FROM Models WHERE Id IN ('legacy-1','legacy-2') AND SourcePipeline = 'legacy';", cancellationToken: ct));
++        Assert.Equal(2, legacyLineage);
++
++        var activeDupes = (await verify.QueryAsync<string>(new CommandDefinition(
++            "SELECT Id FROM Models WHERE FolderPath = 'c:\\lib\\Artist\\Release\\Model' AND IsActive = 1;",
++            cancellationToken: ct))).ToList();
++        Assert.Equal(["dup-new"], activeDupes); // newest row survives
++
++        // Release/Artist rows with a FolderPath stay active.
++        Assert.Equal(1, await verify.ExecuteScalarAsync<long>(new CommandDefinition(
++            "SELECT IsActive FROM Releases WHERE Id = 'r1';", cancellationToken: ct)));
++    }
++
++    [Fact]
++    public async Task Migration_V11_EnforcesUniqueActiveFolderPath()
++    {
++        var ct = TestContext.Current.CancellationToken;
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++
++        await conn.ExecuteAsync(new CommandDefinition(
++            "INSERT INTO Models (Id, Name, ScanRoot, FolderPath, CreatedAt) VALUES ('m1','M','r','f','t');",
++            cancellationToken: ct));
++
++        await Assert.ThrowsAsync<SqliteException>(() => conn.ExecuteAsync(new CommandDefinition(
++            "INSERT INTO Models (Id, Name, ScanRoot, FolderPath, CreatedAt) VALUES ('m2','M','r','f','t');",
++            cancellationToken: ct)));
++
++        // A retired row for the same path is allowed (partial index only covers active rows).
++        await conn.ExecuteAsync(new CommandDefinition(
++            "UPDATE Models SET IsActive = 0 WHERE Id = 'm1';", cancellationToken: ct));
++        await conn.ExecuteAsync(new CommandDefinition(
++            "INSERT INTO Models (Id, Name, ScanRoot, FolderPath, CreatedAt) VALUES ('m2','M','r','f','t');",
++            cancellationToken: ct));
++    }
++
++    // ---------------------------------------------------------------------
++    // Helpers
++    // ---------------------------------------------------------------------
++
++    private sealed record Counts(
++        long ActiveArtists, long ActiveReleases, long ActiveModels, long ActiveFiles,
++        long TotalModels);
++
++    private async Task<Counts> SnapshotCountsAsync(System.Threading.CancellationToken ct)
++    {
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++        return await conn.QuerySingleAsync<Counts>(new CommandDefinition(
++            """
++            SELECT
++                (SELECT COUNT(*) FROM Artists  WHERE IsActive = 1) AS ActiveArtists,
++                (SELECT COUNT(*) FROM Releases WHERE IsActive = 1) AS ActiveReleases,
++                (SELECT COUNT(*) FROM Models   WHERE IsActive = 1) AS ActiveModels,
++                (SELECT COUNT(*) FROM Files    WHERE IsActive = 1) AS ActiveFiles,
++                (SELECT COUNT(*) FROM Models)                      AS TotalModels;
++            """,
++            cancellationToken: ct));
++    }
++
++    private async Task<string[]> GetActiveModelIdsAsync(System.Threading.CancellationToken ct)
++    {
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++        return (await conn.QueryAsync<string>(new CommandDefinition(
++            "SELECT Id FROM Models WHERE IsActive = 1 ORDER BY Id;", cancellationToken: ct))).ToArray();
++    }
++
++    private async Task<string> GetSingleFileHashAsync(System.Threading.CancellationToken ct)
++    {
++        await using var conn = _connectionFactory.CreateConnection();
++        await conn.OpenAsync(ct);
++        return await conn.QuerySingleAsync<string>(new CommandDefinition(
++            "SELECT ContentHash FROM Files WHERE IsActive = 1;", cancellationToken: ct));
++    }
++
++    private async Task BuildXalatathFixtureAsync(System.Threading.CancellationToken ct)
++    {
++        var releaseDir = Path.Combine(_libraryRoot, "Luftmensch", "Xalatath");
++        var dir16 = Path.Combine(releaseDir, "Xalatath 1-6 scale");
++        var dir110 = Path.Combine(releaseDir, "Xalatath 1-10 scale");
++        Directory.CreateDirectory(dir16);
++        Directory.CreateDirectory(dir110);
++        await File.WriteAllBytesAsync(Path.Combine(dir16, "Torso.stl"), [1, 1], ct);
++        await File.WriteAllBytesAsync(Path.Combine(dir16, "Cape.stl"), [1, 2], ct);
++        await File.WriteAllBytesAsync(Path.Combine(dir110, "Torso.stl"), [2, 1], ct);
++        await File.WriteAllBytesAsync(Path.Combine(dir110, "Cape.stl"), [2, 2], ct);
++    }
++
++    private Task<string> BuildSingleModelAsync(
++        string artist, string release, string model, string[] files, System.Threading.CancellationToken ct) =>
++        BuildModelUnderAsync(_libraryRoot, artist, release, model, files, ct);
++
++    private static async Task<string> BuildModelUnderAsync(
++        string root, string artist, string release, string model, string[] files,
++        System.Threading.CancellationToken ct)
++    {
++        var dir = Path.Combine(root, artist, release, model);
++        Directory.CreateDirectory(dir);
++        for (var i = 0; i < files.Length; i++)
++        {
++            await File.WriteAllBytesAsync(Path.Combine(dir, files[i]), [(byte)(i + 1), (byte)(files[i].Length)], ct);
++        }
++
++        return dir;
++    }
++
++    private static async Task<bool> ColumnExistsAsync(
++        SqliteConnection conn, string table, string column, System.Threading.CancellationToken ct)
++    {
++        var cols = await conn.QueryAsync<(long cid, string name)>(new CommandDefinition(
++            $"SELECT cid, name FROM pragma_table_info('{table}');", cancellationToken: ct));
++        return cols.Any(c => string.Equals(c.name, column, StringComparison.OrdinalIgnoreCase));
++    }
++
++    /// <summary>
++    /// Simulates a pre-v11 database: drops the v11 index and records, and resets
++    /// user_version so the next MigrateAsync re-runs v11. Columns are left in
++    /// place (AddColumnIfNotExists makes v11 re-entrant), which matches how an
++    /// upgraded database would look apart from the new data rules.
++    /// </summary>
++    private static async Task DowngradeToV10Async(SqliteConnection conn, System.Threading.CancellationToken ct)
++    {
++        await conn.ExecuteAsync(new CommandDefinition(
++            """
++            DROP INDEX IF EXISTS UX_Models_FolderPath;
++            DROP INDEX IF EXISTS IX_Files_ContentHash;
++            DELETE FROM DPVSchemaMigrations WHERE Version = 11;
++            PRAGMA user_version = 10;
++            """,
++            cancellationToken: ct));
++    }
++}
+-- 
+2.53.0
+

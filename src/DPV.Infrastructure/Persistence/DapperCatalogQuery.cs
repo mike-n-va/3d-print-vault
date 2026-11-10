@@ -52,7 +52,7 @@ public sealed class DapperCatalogQuery(
                 COALESCE(m.ActiveImagePath, m.HeroPreviewPath, (SELECT mf3.NormalizedPath FROM ModelFiles mf3 WHERE mf3.ModelId = m.Id AND (mf3.NormalizedPath LIKE '%.png' OR mf3.NormalizedPath LIKE '%.jpg') LIMIT 1), r.CoverImagePath) AS ThumbnailPath,
                 COALESCE(a.Name, '') AS ArtistName,
                 COALESCE(c.Name, r.Name, '') AS CollectionName,
-                CASE WHEN EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = m.Id) THEN (SELECT COUNT(*) FROM Files f WHERE f.ModelId = m.Id) ELSE COUNT(mf.Id) END AS AssetCount,
+                CASE WHEN EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = m.Id AND f.IsActive = 1) THEN (SELECT COUNT(*) FROM Files f WHERE f.ModelId = m.Id AND f.IsActive = 1) ELSE COUNT(mf.Id) END AS AssetCount,
                 COALESCE(m.ConfidenceScore, 1.0) AS ConfidenceScore,
                 COALESCE(m.IsFavorite, 0) AS IsFavorite
             FROM Models m
@@ -60,7 +60,8 @@ public sealed class DapperCatalogQuery(
             LEFT JOIN Artists a ON a.Id = m.ArtistId
             LEFT JOIN Collections c ON c.Id = m.CollectionId
             LEFT JOIN Releases r ON r.Id = m.ReleaseId
-            WHERE (@IncludeInactive = 1 OR mf.IsActive IS NULL OR mf.IsActive = 1)
+            WHERE m.IsActive = 1
+              AND (@IncludeInactive = 1 OR mf.IsActive IS NULL OR mf.IsActive = 1)
               AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
               AND (@ReleaseId IS NULL OR m.ReleaseId = @ReleaseId)
               AND (@ArtistFilter IS NULL OR lower(a.Name) = lower(@ArtistFilter))
@@ -176,7 +177,9 @@ public sealed class DapperCatalogQuery(
                 SELECT a.Name, COUNT(DISTINCT m.Id) AS ModelCount, COALESCE(a.IsFavorite, 0) AS IsFavorite, a.Id
                 FROM Models m
                 INNER JOIN Artists a ON a.Id = m.ArtistId
-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                WHERE a.IsActive = 1
+                  AND m.IsActive = 1
+                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
                 GROUP BY a.Id, a.Name, a.IsFavorite
                 ORDER BY a.Name ASC;
                 """,
@@ -212,7 +215,8 @@ public sealed class DapperCatalogQuery(
                 SELECT c.Name, COUNT(DISTINCT m.Id) AS ModelCount, c.Description
                 FROM Models m
                 INNER JOIN Collections c ON c.Id = m.CollectionId
-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                WHERE m.IsActive = 1
+                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
                 GROUP BY c.Name, c.Description
                 ORDER BY c.Name ASC;
                 """,
@@ -241,7 +245,8 @@ public sealed class DapperCatalogQuery(
                 FROM Tags t
                 INNER JOIN ModelTags mt ON mt.TagId = t.Id
                 INNER JOIN Models m ON m.Id = mt.ModelId
-                WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+                WHERE m.IsActive = 1
+                  AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
                 GROUP BY t.Name
                 ORDER BY t.Name ASC;
                 """,
@@ -310,7 +315,8 @@ public sealed class DapperCatalogQuery(
                 """
                 SELECT COUNT(*)
                 FROM Models m
-                WHERE m.IsFavorite = 1
+                WHERE m.IsActive = 1
+                  AND m.IsFavorite = 1
                   AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot);
                 """,
                 new { ScanRoot = normalizedScanRoot },

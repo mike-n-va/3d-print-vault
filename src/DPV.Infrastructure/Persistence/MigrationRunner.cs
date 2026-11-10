@@ -5,7 +5,7 @@ namespace DPV.Infrastructure.Persistence;
 
 public sealed class MigrationRunner
 {
-    public const int CurrentSchemaVersion = 10;
+    public const int CurrentSchemaVersion = 11;
     private const string MigrationTableName = "DPVSchemaMigrations";
 
     public async Task MigrateAsync(
@@ -89,6 +89,12 @@ public sealed class MigrationRunner
         {
             await MigrateToV10Async(connection, transaction, cancellationToken).ConfigureAwait(false);
             await InsertVersionAsync(connection, transaction, 10, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (currentVersion < 11)
+        {
+            await MigrateToV11Async(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await InsertVersionAsync(connection, transaction, 11, cancellationToken).ConfigureAwait(false);
         }
 
         await SetUserVersionAsync(connection, transaction, CurrentSchemaVersion, cancellationToken)
@@ -515,6 +521,72 @@ public sealed class MigrationRunner
                 LastScannedUtc TEXT NOT NULL,
                 DirectoryLastWriteUtc TEXT NOT NULL
             );
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Schema v11 — idempotent identity and soft-delete tombstones for the 4-tier catalog.
+    /// Adds IsActive flags to all four tiers, SourcePipeline lineage columns, a real
+    /// content hash column on Files, and a natural-key uniqueness constraint on
+    /// Models(FolderPath) so re-scans upsert instead of duplicating rows. Rows written
+    /// by the legacy v1 flat pipeline (FolderPath IS NULL) are retired (IsActive = 0)
+    /// rather than deleted; they are re-derivable by rescanning with the v2 scanner.
+    /// </summary>
+    private static async Task MigrateToV11Async(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        // Tombstone flags (soft delete) for every tier.
+        await AddColumnIfNotExistsAsync(connection, transaction, "Artists", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Releases", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Files", "IsActive", "INTEGER NOT NULL DEFAULT 1", cancellationToken).ConfigureAwait(false);
+
+        // Lineage: which pipeline wrote this row.
+        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "SourcePipeline", "TEXT NOT NULL DEFAULT 'v2'", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Releases", "SourcePipeline", "TEXT NOT NULL DEFAULT 'v2'", cancellationToken).ConfigureAwait(false);
+
+        // Real content hash for Tier-4 files (path+size placeholder hashes made
+        // duplicate detection meaningless for v2-scanned libraries).
+        await AddColumnIfNotExistsAsync(connection, transaction, "Files", "ContentHash", "TEXT", cancellationToken).ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            -- Retire legacy v1 rows. The v2 scanner always sets FolderPath; the v1
+            -- pipeline never did, so FolderPath IS NULL is a safe lineage marker.
+            UPDATE Models
+            SET SourcePipeline = 'legacy', IsActive = 0
+            WHERE FolderPath IS NULL;
+
+            UPDATE Releases
+            SET SourcePipeline = 'legacy', IsActive = 0
+            WHERE FolderPath IS NULL;
+
+            -- Deactivate duplicate active Models that share a FolderPath (created by
+            -- the pre-v11 per-scan GUID insert bug), keeping the newest row per folder.
+            UPDATE Models SET IsActive = 0
+            WHERE Id IN (
+                SELECT Id FROM (
+                    SELECT Id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY FolderPath
+                               ORDER BY CreatedAt DESC, rowid DESC) AS rn
+                    FROM Models
+                    WHERE IsActive = 1 AND FolderPath IS NOT NULL
+                )
+                WHERE rn > 1
+            );
+
+            -- Natural-key uniqueness: one active Model per folder path. This is the
+            -- constraint that makes scanner upserts idempotent.
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_Models_FolderPath
+                ON Models(FolderPath) WHERE IsActive = 1 AND FolderPath IS NOT NULL;
+
+            CREATE INDEX IF NOT EXISTS IX_Files_ContentHash
+                ON Files(ContentHash) WHERE IsActive = 1;
             """;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }

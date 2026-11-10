@@ -47,8 +47,9 @@ public sealed class DapperReleaseRepository(
                 r.ArtistId
             FROM Releases r
             LEFT JOIN Artists a ON a.Id = r.ArtistId
-            LEFT JOIN Models m ON m.ReleaseId = r.Id
-            WHERE (@OnlyFavorites = 0 OR r.IsFavorite = 1)
+            LEFT JOIN Models m ON m.ReleaseId = r.Id AND m.IsActive = 1
+            WHERE r.IsActive = 1
+              AND (@OnlyFavorites = 0 OR r.IsFavorite = 1)
               AND (@ArtistId IS NULL OR r.ArtistId = @ArtistId)
               AND (@ArtistName IS NULL OR lower(a.Name) = lower(@ArtistName))
               AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL)
@@ -153,8 +154,9 @@ public sealed class DapperReleaseRepository(
                 COUNT(DISTINCT m.Id) AS TotalModelsInReleases,
                 COUNT(DISTINCT CASE WHEN r.IsFavorite = 1 THEN r.Id ELSE NULL END) AS FavoritedReleases
             FROM Releases r
-            LEFT JOIN Models m ON m.ReleaseId = r.Id
-            WHERE (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL);
+            LEFT JOIN Models m ON m.ReleaseId = r.Id AND m.IsActive = 1
+            WHERE r.IsActive = 1
+              AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot OR m.ScanRoot IS NULL);
             """;
 
         var statRow = await connection.QuerySingleOrDefaultAsync<dynamic>(
@@ -201,6 +203,7 @@ public sealed class DapperReleaseRepository(
                 LEFT JOIN Artists a ON a.Id = r.ArtistId
                 LEFT JOIN Models m ON m.ReleaseId = r.Id
                 WHERE r.Id = @Id
+                  AND r.IsActive = 1
                 GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.FolderPath, r.IsFavorite, r.ReleaseDate, r.ArtistId;
                 """,
                 new { Id = idStr },
@@ -238,6 +241,7 @@ public sealed class DapperReleaseRepository(
                 LEFT JOIN Artists a ON a.Id = m.ArtistId
                 LEFT JOIN Collections c ON c.Id = m.CollectionId
                 WHERE m.ReleaseId = @Id
+                  AND m.IsActive = 1
                   AND mf.IsActive = 1
                 GROUP BY m.Id, m.Name, m.HeroPreviewPath, m.ConfidenceScore, m.IsFavorite, m.CreatedAt, a.Name, c.Name
                 ORDER BY m.Name ASC;

@@ -90,7 +90,10 @@ public class MainDashboardViewModel : DashboardViewModel
         try
         {
             var result = await _directoryScanner.BulkScanAsync(RootPath, progress, _scanCancellation.Token).ConfigureAwait(true);
-            CurrentStatusText = $"Scan complete. Added {result.TotalArtists} Artists, {result.TotalReleases} Releases, {result.TotalModels} Models, {result.TotalFiles} Files.";
+            var retiredSummary = result.RetiredModels + result.RetiredReleases + result.RetiredArtists > 0
+                ? $" Retired {result.RetiredFiles} files, {result.RetiredModels} models, {result.RetiredReleases} releases, {result.RetiredArtists} artists (no longer on disk)."
+                : string.Empty;
+            CurrentStatusText = $"Scan complete. Added {result.TotalArtists} Artists, {result.TotalReleases} Releases, {result.TotalModels} Models, {result.TotalFiles} Files.{retiredSummary}";
             ProgressPercentage = 100;
             await LoadCatalogAsync().ConfigureAwait(true);
         }

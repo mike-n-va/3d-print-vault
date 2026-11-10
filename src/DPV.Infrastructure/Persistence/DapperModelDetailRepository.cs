@@ -47,12 +47,12 @@ public sealed class DapperModelDetailRepository(
                 SELECT FilePath, FileSize AS FileSizeBytes, (upper(COALESCE(NULLIF(substr(FileExtension, 2), ''), FileExtension)) || ' • ' || printf('%.2f MB', FileSize / 1048576.0)) AS FileHash,
                        '' AS LastModified, 1 AS IsActive
                 FROM Files
-                WHERE ModelId = @Id
+                WHERE ModelId = @Id AND IsActive = 1
                 UNION ALL
                 SELECT NormalizedPath AS FilePath, FileSizeBytes, ContentHash AS FileHash,
                        ModifiedAtUtc AS LastModified, IsActive
                 FROM ModelFiles
-                WHERE ModelId = @Id AND NOT EXISTS (SELECT 1 FROM Files WHERE ModelId = @Id)
+                WHERE ModelId = @Id AND NOT EXISTS (SELECT 1 FROM Files WHERE ModelId = @Id AND IsActive = 1)
                 ORDER BY FilePath
                 """,
                 new { Id = id },

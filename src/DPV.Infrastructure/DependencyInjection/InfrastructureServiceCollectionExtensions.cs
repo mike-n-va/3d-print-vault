@@ -50,16 +50,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<DPV.Domain.Contracts.Catalog.ICatalogExportService, CatalogExportService>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IDbMaintenanceService, SqliteDbMaintenanceService>();
         services.AddSingleton<DPV.Domain.Contracts.Import.IModelDiscoveryEngine, DPV.Infrastructure.Import.Discovery.ModelDiscoveryEngine>();
-        services.AddSingleton<IModelImportService, ModelImportService>();
+        // Legacy v1 import pipeline unhooked; only the v2 scanner pipeline (IDirectoryScannerService) operates.
+        // services.AddSingleton<IModelImportService, ModelImportService>();
         services.AddSingleton<IDirectoryScannerService, DirectoryScannerService>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(_ => new BackgroundScanQueue());
-        services.AddSingleton(provider => new ScanBackgroundWorker(
-            provider.GetRequiredService<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(),
-            provider.GetRequiredService<IModelImportService>(),
-            provider.GetRequiredService<ILogger<ScanBackgroundWorker>>(),
-            ReadInt64(configuration, "Scanning:MaxFileSizeBytes", 2L * 1024 * 1024 * 1024),
-            ReadInt32(configuration, "Scanning:BatchLimit", 500)));
-        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<ScanBackgroundWorker>());
+        // services.AddSingleton(provider => new ScanBackgroundWorker(
+        //     provider.GetRequiredService<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(),
+        //     provider.GetRequiredService<IModelImportService>(),
+        //     provider.GetRequiredService<ILogger<ScanBackgroundWorker>>(),
+        //     ReadInt64(configuration, "Scanning:MaxFileSizeBytes", 2L * 1024 * 1024 * 1024),
+        //     ReadInt32(configuration, "Scanning:BatchLimit", 500)));
+        // services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<ScanBackgroundWorker>());
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<IHostedService>(
             provider => provider.GetRequiredService<DatabaseInitializer>());
