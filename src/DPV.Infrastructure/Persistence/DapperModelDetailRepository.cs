@@ -24,13 +24,14 @@ public sealed class DapperModelDetailRepository(
         var model = await connection.QuerySingleOrDefaultAsync<ModelDetailRow>(
             new CommandDefinition(
                 """
-                SELECT m.Id, m.Name, m.CreatedAt, a.Name AS ArtistName, c.Name AS CollectionName,
+                SELECT m.Id, m.Name, m.CreatedAt, a.Name AS ArtistName, COALESCE(c.Name, r.Name) AS CollectionName,
                        COALESCE(m.ConfidenceScore, 1.0) AS ConfidenceScore,
                        COALESCE(m.IsFavorite, 0) AS IsFavorite,
                        m.Description, m.PrintNotes
                 FROM Models m
                 LEFT JOIN Artists a ON a.Id = m.ArtistId
                 LEFT JOIN Collections c ON c.Id = m.CollectionId
+                LEFT JOIN Releases r ON r.Id = m.ReleaseId
                 WHERE m.Id = @Id
                 """,
                 new { Id = id },
@@ -43,11 +44,16 @@ public sealed class DapperModelDetailRepository(
         var files = (await connection.QueryAsync<ModelFileRow>(
             new CommandDefinition(
                 """
+                SELECT FilePath, FileSize AS FileSizeBytes, (upper(COALESCE(NULLIF(substr(FileExtension, 2), ''), FileExtension)) || ' • ' || printf('%.2f MB', FileSize / 1048576.0)) AS FileHash,
+                       '' AS LastModified, 1 AS IsActive
+                FROM Files
+                WHERE ModelId = @Id
+                UNION ALL
                 SELECT NormalizedPath AS FilePath, FileSizeBytes, ContentHash AS FileHash,
                        ModifiedAtUtc AS LastModified, IsActive
                 FROM ModelFiles
-                WHERE ModelId = @Id
-                ORDER BY NormalizedPath
+                WHERE ModelId = @Id AND NOT EXISTS (SELECT 1 FROM Files WHERE ModelId = @Id)
+                ORDER BY FilePath
                 """,
                 new { Id = id },
                 cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();

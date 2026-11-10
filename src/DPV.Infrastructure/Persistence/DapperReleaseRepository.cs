@@ -41,6 +41,7 @@ public sealed class DapperReleaseRepository(
                 r.Description,
                 COUNT(DISTINCT m.Id) AS ModelCount,
                 r.CoverImagePath,
+                r.FolderPath,
                 COALESCE(r.IsFavorite, 0) AS IsFavorite,
                 r.ReleaseDate,
                 r.ArtistId
@@ -57,7 +58,7 @@ public sealed class DapperReleaseRepository(
                   OR a.Name LIKE @SearchLike
                   OR r.Description LIKE @SearchLike
               )
-            GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.IsFavorite, r.ReleaseDate, r.ArtistId
+            GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.FolderPath, r.IsFavorite, r.ReleaseDate, r.ArtistId
             ORDER BY r.IsFavorite DESC, r.Name ASC
             LIMIT @Limit OFFSET @Offset;
             """;
@@ -118,7 +119,8 @@ public sealed class DapperReleaseRepository(
                 cover,
                 row.IsFavorite != 0,
                 row.ReleaseDate,
-                Guid.TryParse(row.ArtistId, out var ag) ? ag : null));
+                Guid.TryParse(row.ArtistId, out var ag) ? ag : null,
+                FolderPath: row.FolderPath));
         }
 
         return results;
@@ -199,7 +201,7 @@ public sealed class DapperReleaseRepository(
                 LEFT JOIN Artists a ON a.Id = r.ArtistId
                 LEFT JOIN Models m ON m.ReleaseId = r.Id
                 WHERE r.Id = @Id
-                GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.IsFavorite, r.ReleaseDate, r.ArtistId;
+                GROUP BY r.Id, r.Name, a.Name, r.Description, r.CoverImagePath, r.FolderPath, r.IsFavorite, r.ReleaseDate, r.ArtistId;
                 """,
                 new { Id = idStr },
                 cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -350,6 +352,7 @@ public sealed class DapperReleaseRepository(
         public string? Description { get; set; }
         public long ModelCount { get; set; }
         public string? CoverImagePath { get; set; }
+        public string? FolderPath { get; set; }
         public long IsFavorite { get; set; }
         public string? ReleaseDate { get; set; }
         public string? ArtistId { get; set; }

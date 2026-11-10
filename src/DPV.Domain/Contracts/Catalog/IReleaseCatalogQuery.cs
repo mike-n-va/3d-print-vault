@@ -23,7 +23,8 @@ public sealed record ReleaseSummaryDto(
     string? CoverImagePath,
     bool IsFavorite,
     string? ReleaseDate = null,
-    Guid? ArtistId = null);
+    Guid? ArtistId = null,
+    string? FolderPath = null);
 
 public sealed record ReleaseStatisticsDto(
     int TotalReleases,

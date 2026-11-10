@@ -35,7 +35,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<SqliteCatalogStore>();
         services.AddSingleton<IModelCatalogQuery, SqliteModelCatalogQuery>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IModelCatalogQuery, DapperCatalogQuery>();
-        services.AddSingleton<DPV.Domain.Contracts.Catalog.IReleaseArtworkService, DPV.Infrastructure.Thumbnails.ReleaseArtworkService>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IReleaseArtworkService, DPV.Infrastructure.Thumbnails.ReleaseArtworkService>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IProceduralCollageSynthesizer, DPV.Infrastructure.Thumbnails.SkiaProceduralCollageSynthesizer>();
+        services.AddSingleton<DPV.Domain.Contracts.Catalog.IArtworkResolutionService, DPV.Infrastructure.Thumbnails.ArtworkResolutionService>();
         services.AddSingleton<DapperReleaseRepository>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IReleaseCatalogQuery>(sp => sp.GetRequiredService<DapperReleaseRepository>());
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IReleaseDetailRepository>(sp => sp.GetRequiredService<DapperReleaseRepository>());
@@ -49,6 +51,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IDbMaintenanceService, SqliteDbMaintenanceService>();
         services.AddSingleton<DPV.Domain.Contracts.Import.IModelDiscoveryEngine, DPV.Infrastructure.Import.Discovery.ModelDiscoveryEngine>();
         services.AddSingleton<IModelImportService, ModelImportService>();
+        services.AddSingleton<IDirectoryScannerService, DirectoryScannerService>();
         services.AddSingleton<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(_ => new BackgroundScanQueue());
         services.AddSingleton(provider => new ScanBackgroundWorker(
             provider.GetRequiredService<DPV.Domain.Contracts.Catalog.IBackgroundScanQueue>(),

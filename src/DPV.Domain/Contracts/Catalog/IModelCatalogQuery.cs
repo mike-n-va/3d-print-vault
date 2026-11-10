@@ -9,7 +9,8 @@ public record ModelQueryParameters(
     bool IncludeInactive = false,
     int Limit = 100,
     int Offset = 0,
-    string? ScanRoot = null);
+    string? ScanRoot = null,
+    Guid? ReleaseId = null);
 
 public interface IModelCatalogQuery
 {
@@ -34,4 +35,7 @@ public sealed record ModelSummaryDto(
     string ConfidenceTier = "HighConfidence",
     string DiscoveryMethod = "Deterministic",
     IReadOnlyList<string>? Evidence = null,
-    bool IsFavorite = false);
+    bool IsFavorite = false,
+    string? Scale = null,
+    string? FolderPath = null,
+    string? ActiveImagePath = null);

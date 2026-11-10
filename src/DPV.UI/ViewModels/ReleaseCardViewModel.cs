@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using DPV.Domain.Contracts.Catalog;
@@ -26,6 +27,8 @@ public sealed class ReleaseCardViewModel : INotifyPropertyChanged
         ModelCount = release.ModelCount;
         _isFavorite = release.IsFavorite;
         ReleaseDate = release.ReleaseDate;
+        FolderPath = release.FolderPath;
+        RootDirectoryPath = release.FolderPath;
 
         SelectCommand = new RelayCommand(() => onSelect?.Invoke(this));
         ToggleFavoriteCommand = new RelayCommand(async () =>
@@ -50,6 +53,7 @@ public sealed class ReleaseCardViewModel : INotifyPropertyChanged
         int modelCount = 0,
         bool isFavorite = false,
         string? releaseDate = null,
+        string? folderPath = null,
         Action<ReleaseCardViewModel>? onSelect = null,
         Func<ReleaseCardViewModel, Task>? onToggleFavorite = null)
     {
@@ -61,6 +65,8 @@ public sealed class ReleaseCardViewModel : INotifyPropertyChanged
         ModelCount = modelCount;
         _isFavorite = isFavorite;
         ReleaseDate = releaseDate;
+        FolderPath = folderPath;
+        RootDirectoryPath = folderPath;
 
         SelectCommand = new RelayCommand(() => onSelect?.Invoke(this));
         ToggleFavoriteCommand = new RelayCommand(async () =>
@@ -86,7 +92,13 @@ public sealed class ReleaseCardViewModel : INotifyPropertyChanged
 
     public int ModelCount { get; }
 
+    public string? FolderPath { get; }
+
     public string? ReleaseDate { get; }
+
+    public ArtworkTier ResolutionTier { get; set; } = ArtworkTier.Tier4GeometricFallback;
+
+    public string? RootDirectoryPath { get; set; }
 
     public bool IsFavorite
     {
@@ -103,6 +115,36 @@ public sealed class ReleaseCardViewModel : INotifyPropertyChanged
     public ICommand SelectCommand { get; }
 
     public ICommand ToggleFavoriteCommand { get; }
+
+    public async Task ResolveArtworkAsync(
+        IArtworkResolutionService artworkService,
+        string? directoryPath = null,
+        IEnumerable<string>? candidateFiles = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(BannerPath) && System.IO.File.Exists(BannerPath))
+        {
+            return;
+        }
+
+        var dir = directoryPath ?? RootDirectoryPath;
+        if (string.IsNullOrWhiteSpace(dir))
+        {
+            return;
+        }
+
+        var result = await artworkService.ResolveReleaseArtworkAsync(
+            ReleaseId,
+            dir,
+            candidateFiles,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(result.ResolvedPath))
+        {
+            ResolutionTier = result.Tier;
+            BannerPath = result.ResolvedPath;
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

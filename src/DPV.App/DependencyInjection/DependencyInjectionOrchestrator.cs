@@ -33,7 +33,9 @@ public static class DependencyInjectionOrchestrator
                 serviceProvider.GetService<IUserPreferencesService>(),
                 serviceProvider.GetService<IModelGroupingQuery>(),
                 serviceProvider.GetService<IReleaseCatalogQuery>(),
-                serviceProvider.GetService<IReleaseDetailRepository>());
+                serviceProvider.GetService<IReleaseDetailRepository>(),
+                serviceProvider.GetService<IArtworkResolutionService>(),
+                serviceProvider.GetService<IDirectoryScannerService>());
         });
         services.AddSingleton<DashboardViewModel>(serviceProvider =>
             serviceProvider.GetRequiredService<MainDashboardViewModel>());

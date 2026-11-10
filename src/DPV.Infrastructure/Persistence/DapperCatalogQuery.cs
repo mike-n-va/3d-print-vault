@@ -37,6 +37,9 @@ public sealed class DapperCatalogQuery(
             SELECT
                 m.Id,
                 m.Name,
+                m.Scale,
+                m.FolderPath,
+                m.ActiveImagePath,
                 COALESCE(
                     (SELECT mf2.NormalizedPath FROM ModelFiles mf2 WHERE mf2.ModelId = m.Id AND mf2.FileRole = 1 AND (@IncludeInactive = 1 OR mf2.IsActive = 1) LIMIT 1),
                     (SELECT mf2.NormalizedPath FROM ModelFiles mf2 WHERE mf2.ModelId = m.Id AND (@IncludeInactive = 1 OR mf2.IsActive = 1) ORDER BY mf2.FileRole ASC, mf2.NormalizedPath ASC LIMIT 1),
@@ -46,20 +49,22 @@ public sealed class DapperCatalogQuery(
                 COALESCE(MAX(mf.ModifiedAtUtc), m.CreatedAt, '') AS LastModified,
                 MAX(mf.IsActive) AS IsActive,
                 COALESCE(MIN(mf.ContentHash), '') AS ContentHash,
-                COALESCE(m.HeroPreviewPath, (SELECT mf3.NormalizedPath FROM ModelFiles mf3 WHERE mf3.ModelId = m.Id AND (mf3.NormalizedPath LIKE '%.png' OR mf3.NormalizedPath LIKE '%.jpg') LIMIT 1)) AS ThumbnailPath,
+                COALESCE(m.ActiveImagePath, m.HeroPreviewPath, (SELECT mf3.NormalizedPath FROM ModelFiles mf3 WHERE mf3.ModelId = m.Id AND (mf3.NormalizedPath LIKE '%.png' OR mf3.NormalizedPath LIKE '%.jpg') LIMIT 1), r.CoverImagePath) AS ThumbnailPath,
                 COALESCE(a.Name, '') AS ArtistName,
-                COALESCE(c.Name, '') AS CollectionName,
-                COUNT(mf.Id) AS AssetCount,
+                COALESCE(c.Name, r.Name, '') AS CollectionName,
+                CASE WHEN EXISTS (SELECT 1 FROM Files f WHERE f.ModelId = m.Id) THEN (SELECT COUNT(*) FROM Files f WHERE f.ModelId = m.Id) ELSE COUNT(mf.Id) END AS AssetCount,
                 COALESCE(m.ConfidenceScore, 1.0) AS ConfidenceScore,
                 COALESCE(m.IsFavorite, 0) AS IsFavorite
             FROM Models m
-            INNER JOIN ModelFiles mf ON mf.ModelId = m.Id
+            LEFT JOIN ModelFiles mf ON mf.ModelId = m.Id
             LEFT JOIN Artists a ON a.Id = m.ArtistId
             LEFT JOIN Collections c ON c.Id = m.CollectionId
-            WHERE (@IncludeInactive = 1 OR mf.IsActive = 1)
+            LEFT JOIN Releases r ON r.Id = m.ReleaseId
+            WHERE (@IncludeInactive = 1 OR mf.IsActive IS NULL OR mf.IsActive = 1)
               AND (@ScanRoot IS NULL OR m.ScanRoot = @ScanRoot)
+              AND (@ReleaseId IS NULL OR m.ReleaseId = @ReleaseId)
               AND (@ArtistFilter IS NULL OR lower(a.Name) = lower(@ArtistFilter))
-              AND (@CollectionFilter IS NULL OR lower(c.Name) = lower(@CollectionFilter))
+              AND (@CollectionFilter IS NULL OR lower(COALESCE(c.Name, r.Name)) = lower(@CollectionFilter))
               AND (@OnlyFavorites = 0 OR m.IsFavorite = 1)
             """;
 
@@ -79,11 +84,11 @@ public sealed class DapperCatalogQuery(
 
         if (useLike)
         {
-            sql += " AND (m.Name LIKE @Like ESCAPE '\\' OR mf.NormalizedPath LIKE @Like ESCAPE '\\' OR a.Name LIKE @Like ESCAPE '\\' OR c.Name LIKE @Like ESCAPE '\\')";
+            sql += " AND (m.Name LIKE @Like ESCAPE '\\' OR mf.NormalizedPath LIKE @Like ESCAPE '\\' OR a.Name LIKE @Like ESCAPE '\\' OR c.Name LIKE @Like ESCAPE '\\' OR r.Name LIKE @Like ESCAPE '\\')";
         }
 
         sql += """
-            GROUP BY m.Id, m.Name, m.ScanRoot, m.HeroPreviewPath, m.ConfidenceScore, m.CreatedAt, a.Name, c.Name, m.IsFavorite
+            GROUP BY m.Id, m.Name, m.Scale, m.FolderPath, m.ActiveImagePath, m.ScanRoot, m.HeroPreviewPath, m.ConfidenceScore, m.CreatedAt, a.Name, c.Name, r.Name, r.CoverImagePath, m.IsFavorite
             ORDER BY MAX(mf.ModifiedAtUtc) DESC
             LIMIT @Limit OFFSET @Offset;
             """;
@@ -98,6 +103,7 @@ public sealed class DapperCatalogQuery(
                 {
                     IncludeInactive = parameters.IncludeInactive ? 1 : 0,
                     ScanRoot = scanRoot,
+                    ReleaseId = parameters.ReleaseId?.ToString("D"),
                     Match = match,
                     TagFilter = tag,
                     ArtistFilter = artist,
@@ -144,7 +150,10 @@ public sealed class DapperCatalogQuery(
                     tier,
                     method,
                     evidence,
-                    row.IsFavorite != 0);
+                    row.IsFavorite != 0,
+                    Scale: row.Scale,
+                    FolderPath: row.FolderPath,
+                    ActiveImagePath: row.ActiveImagePath);
             })
             .ToList();
     }
@@ -356,6 +365,9 @@ public sealed class DapperCatalogQuery(
         public double ConfidenceScore { get; set; } = 1.0;
 
         public long IsFavorite { get; set; }
+        public string? Scale { get; set; }
+        public string? FolderPath { get; set; }
+        public string? ActiveImagePath { get; set; }
     }
 
 
@@ -375,6 +387,9 @@ public sealed class DapperCatalogQuery(
         public long ModelCount { get; set; }
 
         public long IsFavorite { get; set; }
+        public string? Scale { get; set; }
+        public string? FolderPath { get; set; }
+        public string? ActiveImagePath { get; set; }
 
         public string? Id { get; set; }
 

@@ -50,6 +50,19 @@
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Top"
                                 Margin="8">
+                        <!-- Scale Badge -->
+                        <Border IsVisible="{Binding Scale, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Background="#E01E293B"
+                                BorderBrush="#3B82F6"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="5,2">
+                            <TextBlock Text="{Binding Scale}"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="#60A5FA" />
+                        </Border>
+
                         <!-- Pre-Supported Badge -->
                         <Border IsVisible="{Binding IsPreSupported}"
                                 Background="#D0064E3B"

@@ -157,4 +157,97 @@ public class ModelAndReleaseCardViewModelTests
             IProgress<ImportProgress>? progress = null) =>
             Task.FromResult(new ImportLibraryResult(0, 0, 0, 0, 0, true, []));
     }
+    [Fact]
+    public void ModelCardViewModel_BindsScaleAndFolderPath_Correctly()
+    {
+        var id = Guid.NewGuid();
+        var summary = new ModelSummaryDto(
+            Id: id,
+            Name: "Xal'atath 1-6 scale",
+            FilePath: @"C:\Vault\Xalatath\Xal'atath 1-6 scale",
+            FileSizeBytes: 5000,
+            LastModified: "2026-11-07",
+            IsActive: true,
+            ThumbnailPath: "xalatath.jpg",
+            ArtistName: "Luftmensch",
+            CollectionName: "Xal'atath Set",
+            AssetCount: 6,
+            Scale: "1/6",
+            FolderPath: @"C:\Vault\Xalatath\Xal'atath 1-6 scale",
+            ActiveImagePath: "xalatath_beauty.jpg");
+
+        var card = new ModelCardViewModel(summary);
+
+        Assert.Equal("1/6", card.Scale);
+        Assert.Equal(@"C:\Vault\Xalatath\Xal'atath 1-6 scale", card.FolderPath);
+        Assert.Equal("xalatath_beauty.jpg", card.ActiveImagePath);
+    }
+
+    [Fact]
+    public async Task MainDashboardViewModel_ClickingReleaseCard_DrillsDownToRelease()
+    {
+        var relId = Guid.NewGuid();
+        var release = new ReleaseSummaryDto(
+            ReleaseId: relId,
+            Name: "Crimson Campaign",
+            ArtistName: "Artisan Guild",
+            Description: "Epic set",
+            ModelCount: 5,
+            CoverImagePath: "cover.jpg",
+            IsFavorite: false,
+            FolderPath: @"C:\Vault\Crimson");
+
+        var models = new List<ModelSummaryDto>
+        {
+            new(Guid.NewGuid(), "Warrior 1-6", @"C:\v\w16", 100, "", true, Scale: "1/6"),
+            new(Guid.NewGuid(), "Warrior 1-10", @"C:\v\w10", 200, "", true, Scale: "1/10")
+        };
+
+        var query = new FakeCatalogQuery(models);
+        var relQuery = new FakeReleaseQuery([release]);
+        var vm = new MainDashboardViewModel(
+            new FakeImportService(),
+            query,
+            releaseCatalogQuery: relQuery);
+
+        await vm.LoadFeaturedReleasesAsync(TestContext.Current.CancellationToken);
+        Assert.Single(vm.FeaturedReleases);
+
+        var releaseCard = vm.FeaturedReleases[0];
+        Assert.False(vm.IsReleaseFiltered);
+
+        // Click the release card -> triggers drill-down navigation
+        releaseCard.SelectCommand.Execute(null);
+
+        Assert.True(vm.IsReleaseFiltered);
+        Assert.NotNull(vm.SelectedRelease);
+        Assert.Equal("Crimson Campaign", vm.SelectedRelease.Name);
+
+        // Clear release filter
+        vm.ClearReleaseFilterCommand.Execute(null);
+        Assert.False(vm.IsReleaseFiltered);
+        Assert.Null(vm.SelectedRelease);
+    }
+
+    private sealed class FakeReleaseQuery : IReleaseCatalogQuery
+    {
+        private readonly IReadOnlyCollection<ReleaseSummaryDto> _releases;
+
+        public FakeReleaseQuery(IReadOnlyCollection<ReleaseSummaryDto> releases) => _releases = releases;
+
+        public Task<IReadOnlyCollection<ReleaseSummaryDto>> GetReleasesAsync(
+            ReleaseQueryParameters parameters,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_releases);
+
+        public Task<IReadOnlyCollection<ReleaseSummaryDto>> GetReleasesByArtistAsync(
+            Guid artistId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyCollection<ReleaseSummaryDto>>([]);
+
+        public Task<ReleaseStatisticsDto> GetReleaseStatisticsAsync(
+            string? scanRoot = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ReleaseStatisticsDto(_releases.Count, _releases.Count, 0));
+    }
 }

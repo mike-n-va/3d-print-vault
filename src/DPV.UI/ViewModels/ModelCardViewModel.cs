@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using DPV.Domain.Contracts.Catalog;
@@ -29,6 +30,14 @@ public sealed class ModelCardViewModel : INotifyPropertyChanged
         _isFavorite = model.IsFavorite;
         _thumbnailPath = model.ThumbnailPath;
         _hoverPreviewPath = model.ThumbnailPath;
+        Scale = model.Scale;
+        FolderPath = model.FolderPath;
+        RootDirectoryPath = model.FolderPath;
+        if (!string.IsNullOrWhiteSpace(model.ActiveImagePath))
+        {
+            _thumbnailPath = model.ActiveImagePath;
+            _hoverPreviewPath = model.ActiveImagePath;
+        }
 
         IsPreSupported = model.Name.Contains("presupported", StringComparison.OrdinalIgnoreCase)
                          || model.Name.Contains("supported", StringComparison.OrdinalIgnoreCase);
@@ -58,6 +67,8 @@ public sealed class ModelCardViewModel : INotifyPropertyChanged
         int assetCount = 1,
         bool isFavorite = false,
         bool isPreSupported = false,
+        string? scale = null,
+        string? folderPath = null,
         Action<ModelCardViewModel>? onSelect = null,
         Func<ModelCardViewModel, Task>? onToggleFavorite = null)
     {
@@ -71,6 +82,9 @@ public sealed class ModelCardViewModel : INotifyPropertyChanged
         AssetCount = assetCount;
         _isFavorite = isFavorite;
         IsPreSupported = isPreSupported;
+        Scale = scale;
+        FolderPath = folderPath;
+        RootDirectoryPath = folderPath;
 
         SelectCommand = new RelayCommand(() => onSelect?.Invoke(this));
         ToggleFavoriteCommand = new RelayCommand(async () =>
@@ -98,7 +112,15 @@ public sealed class ModelCardViewModel : INotifyPropertyChanged
 
     public int AssetCount { get; }
 
+    public string? Scale { get; init; }
+
+    public string? FolderPath { get; init; }
+
     public bool IsPreSupported { get; }
+
+    public ArtworkTier ResolutionTier { get; set; } = ArtworkTier.Tier4GeometricFallback;
+
+    public string? RootDirectoryPath { get; set; }
 
     public bool IsFavorite
     {
@@ -149,6 +171,37 @@ public sealed class ModelCardViewModel : INotifyPropertyChanged
     public ICommand SelectCommand { get; }
 
     public ICommand ToggleFavoriteCommand { get; }
+
+    public async Task ResolveArtworkAsync(
+        IArtworkResolutionService artworkService,
+        string? directoryPath = null,
+        IEnumerable<string>? candidateFiles = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(ThumbnailPath) && System.IO.File.Exists(ThumbnailPath))
+        {
+            return;
+        }
+
+        var dir = directoryPath ?? RootDirectoryPath;
+        if (string.IsNullOrWhiteSpace(dir))
+        {
+            return;
+        }
+
+        var result = await artworkService.ResolveModelArtworkAsync(
+            Id,
+            dir,
+            candidateFiles,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(result.ResolvedPath))
+        {
+            ResolutionTier = result.Tier;
+            ThumbnailPath = result.ResolvedPath;
+            HoverPreviewPath = result.ResolvedPath;
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

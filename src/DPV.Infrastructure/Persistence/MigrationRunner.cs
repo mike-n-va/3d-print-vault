@@ -5,7 +5,7 @@ namespace DPV.Infrastructure.Persistence;
 
 public sealed class MigrationRunner
 {
-    public const int CurrentSchemaVersion = 9;
+    public const int CurrentSchemaVersion = 10;
     private const string MigrationTableName = "DPVSchemaMigrations";
 
     public async Task MigrateAsync(
@@ -83,6 +83,12 @@ public sealed class MigrationRunner
         {
             await MigrateToV9Async(connection, transaction, cancellationToken).ConfigureAwait(false);
             await InsertVersionAsync(connection, transaction, 9, cancellationToken).ConfigureAwait(false);
+        }
+
+                if (currentVersion < 10)
+        {
+            await MigrateToV10Async(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await InsertVersionAsync(connection, transaction, 10, cancellationToken).ConfigureAwait(false);
         }
 
         await SetUserVersionAsync(connection, transaction, CurrentSchemaVersion, cancellationToken)
@@ -472,5 +478,77 @@ public sealed class MigrationRunner
             UPDATE Models SET ReleaseId = CollectionId WHERE CollectionId IS NOT NULL AND ReleaseId IS NULL;
             """;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+    private static async Task MigrateToV10Async(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await AddColumnIfNotExistsAsync(connection, transaction, "Artists", "FolderPath", "TEXT", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Releases", "FolderPath", "TEXT", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "Scale", "TEXT", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "FolderPath", "TEXT", cancellationToken).ConfigureAwait(false);
+        await AddColumnIfNotExistsAsync(connection, transaction, "Models", "ActiveImagePath", "TEXT", cancellationToken).ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS Files (
+                Id TEXT NOT NULL PRIMARY KEY,
+                ModelId TEXT NOT NULL,
+                FileName TEXT NOT NULL,
+                FilePath TEXT NOT NULL UNIQUE,
+                FileExtension TEXT NOT NULL,
+                FileSize INTEGER NOT NULL,
+                FOREIGN KEY (ModelId) REFERENCES Models(Id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_Files_ModelId ON Files(ModelId);
+            CREATE INDEX IF NOT EXISTS IX_Files_FilePath ON Files(FilePath);
+            CREATE INDEX IF NOT EXISTS IX_Models_FolderPath ON Models(FolderPath);
+            CREATE INDEX IF NOT EXISTS IX_Models_Scale ON Models(Scale);
+            CREATE INDEX IF NOT EXISTS IX_Releases_FolderPath ON Releases(FolderPath);
+            CREATE INDEX IF NOT EXISTS IX_Artists_FolderPath ON Artists(FolderPath);
+
+            CREATE TABLE IF NOT EXISTS ScanState (
+                FolderPath TEXT NOT NULL PRIMARY KEY,
+                LastScannedUtc TEXT NOT NULL,
+                DirectoryLastWriteUtc TEXT NOT NULL
+            );
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task AddColumnIfNotExistsAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string tableName,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        await using var checkCmd = connection.CreateCommand();
+        checkCmd.Transaction = transaction;
+        checkCmd.CommandText = $"PRAGMA table_info({tableName});";
+        await using var reader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var exists = false;
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var name = reader.GetString(1);
+            if (string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                exists = true;
+                break;
+            }
+        }
+        await reader.CloseAsync().ConfigureAwait(false);
+
+        if (!exists)
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.Transaction = transaction;
+            alterCmd.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 }

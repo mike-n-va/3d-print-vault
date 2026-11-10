@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -23,10 +24,13 @@ public class DashboardViewModel : INotifyPropertyChanged
     private readonly IModelGroupingQuery? _groupingQuery;
     private readonly IReleaseCatalogQuery? _releaseCatalogQuery;
     private readonly IReleaseDetailRepository? _releaseDetailRepository;
+    private readonly IArtworkResolutionService? _artworkService;
     private CancellationTokenSource? _thumbnailCancellation;
     private string? _previewPath;
     private const int SearchDebounceMilliseconds = 250;
-    private CancellationTokenSource? _scanCancellation;
+    protected CancellationTokenSource? _scanCancellation;
+    private ReleaseCardViewModel? _selectedRelease;
+    private Guid? _selectedReleaseId;
     private CancellationTokenSource? _searchDebounce;
     private bool _isScanning;
     private double _progressPercentage;
@@ -60,7 +64,8 @@ public class DashboardViewModel : INotifyPropertyChanged
         IUserPreferencesService? preferencesService = null,
         IModelGroupingQuery? groupingQuery = null,
         IReleaseCatalogQuery? releaseCatalogQuery = null,
-        IReleaseDetailRepository? releaseDetailRepository = null)
+        IReleaseDetailRepository? releaseDetailRepository = null,
+        IArtworkResolutionService? artworkService = null)
     {
         _importService = importService;
         _catalogQuery = catalogQuery;
@@ -70,6 +75,7 @@ public class DashboardViewModel : INotifyPropertyChanged
         _groupingQuery = groupingQuery;
         _releaseCatalogQuery = releaseCatalogQuery;
         _releaseDetailRepository = releaseDetailRepository;
+        _artworkService = artworkService;
         MaxFileSizeBytes = maxFileSizeBytes;
         BatchLimit = batchLimit;
         _rootPath = rootPath ?? string.Empty;
@@ -94,6 +100,7 @@ public class DashboardViewModel : INotifyPropertyChanged
         ClearSearchCommand = new RelayCommand(ClearSearch);
         SaveMetadataCommand = new RelayCommand(() => _ = SaveMetadataAsync(), () => SelectedModel is not null && !IsScanning);
         SaveDescriptionCommand = new RelayCommand(() => _ = SaveDescriptionAsync(), () => SelectedModel is not null && !IsScanning);
+        ClearReleaseFilterCommand = new RelayCommand(ClearReleaseFilter);
         ToggleFavoriteCommand = new RelayCommand<object>(param => _ = ToggleFavoriteAsync(param));
         ToggleOnlyFavoritesCommand = new RelayCommand(ToggleOnlyFavorites);
         ToggleLibraryDrawerCommand = new RelayCommand(() => IsLibraryDrawerOpen = !IsLibraryDrawerOpen);
@@ -133,6 +140,22 @@ public class DashboardViewModel : INotifyPropertyChanged
     public ICommand ImportCommand { get; }
 
     public ICommand CancelCommand { get; }
+
+    public ICommand ClearReleaseFilterCommand { get; }
+
+    public ReleaseCardViewModel? SelectedRelease
+    {
+        get => _selectedRelease;
+        set
+        {
+            if (SetField(ref _selectedRelease, value))
+            {
+                OnPropertyChanged(nameof(IsReleaseFiltered));
+            }
+        }
+    }
+
+    public bool IsReleaseFiltered => _selectedRelease != null;
 
     public ICommand ExecuteSearchCommand { get; }
 
@@ -311,6 +334,22 @@ public class DashboardViewModel : INotifyPropertyChanged
         _ = ExecuteSearchAsync();
     }
 
+    public void FilterByRelease(ReleaseCardViewModel release)
+    {
+        SelectedRelease = release;
+        _selectedReleaseId = release.ReleaseId;
+        CollectionFilter = release.Name;
+        _ = ExecuteSearchAsync();
+    }
+
+    public void ClearReleaseFilter()
+    {
+        SelectedRelease = null;
+        _selectedReleaseId = null;
+        CollectionFilter = null;
+        _ = ExecuteSearchAsync();
+    }
+
     public void ClearSearch()
     {
         _searchDebounce?.Cancel();
@@ -324,6 +363,10 @@ public class DashboardViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ArtistFilter));
         OnPropertyChanged(nameof(CollectionFilter));
         OnPropertyChanged(nameof(OnlyFavoritesFilter));
+        _selectedRelease = null;
+        _selectedReleaseId = null;
+        OnPropertyChanged(nameof(SelectedRelease));
+        OnPropertyChanged(nameof(IsReleaseFiltered));
         RaiseFilterProperties();
         _ = ExecuteSearchAsync();
     }
@@ -426,19 +469,19 @@ public class DashboardViewModel : INotifyPropertyChanged
     public bool IsScanning
     {
         get => _isScanning;
-        private set => SetField(ref _isScanning, value);
+        protected set => SetField(ref _isScanning, value);
     }
 
     public double ProgressPercentage
     {
         get => _progressPercentage;
-        private set => SetField(ref _progressPercentage, value);
+        protected set => SetField(ref _progressPercentage, value);
     }
 
     public string CurrentStatusText
     {
         get => _currentStatusText;
-        private set => SetField(ref _currentStatusText, value);
+        protected set => SetField(ref _currentStatusText, value);
     }
 
     public string SearchQuery
@@ -486,6 +529,7 @@ public class DashboardViewModel : INotifyPropertyChanged
 
     public async Task ExecuteSearchAsync(CancellationToken cancellationToken = default)
     {
+        _searchDebounce?.Cancel();
         var items = await _catalogQuery.SearchModelsAsync(
             new ModelQueryParameters(
                 SearchTerm: string.IsNullOrWhiteSpace(SearchQuery) ? null : SearchQuery.Trim(),
@@ -493,7 +537,8 @@ public class DashboardViewModel : INotifyPropertyChanged
                 ArtistFilter: ArtistFilter,
                 CollectionFilter: CollectionFilter,
                 ScanRoot: string.IsNullOrWhiteSpace(RootPath) ? null : RootPath,
-                OnlyFavorites: OnlyFavoritesFilter),
+                OnlyFavorites: OnlyFavoritesFilter,
+                ReleaseId: _selectedReleaseId),
             cancellationToken).ConfigureAwait(true);
         var selectedId = SelectedModel?.Id;
         Models.Clear();
@@ -642,7 +687,7 @@ public class DashboardViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task ImportAsync()
+    public virtual async Task ImportAsync()
     {
         if (IsScanning || string.IsNullOrWhiteSpace(RootPath))
         {
@@ -682,6 +727,52 @@ public class DashboardViewModel : INotifyPropertyChanged
             }
 
             await LoadCatalogAsync().ConfigureAwait(true);
+
+            if (_artworkService is not null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var resolved = await _artworkService.ResolveAllUnresolvedModelsAsync(RootPath).ConfigureAwait(false);
+                        if (resolved.Count > 0)
+                        {
+                            Action updateCards = () =>
+                            {
+                                for (var i = 0; i < CatalogModels.Count; i++)
+                                {
+                                    if (resolved.TryGetValue(CatalogModels[i].Id, out var path))
+                                    {
+                                        CatalogModels[i].ThumbnailPath = path;
+                                        CatalogModels[i].HoverPreviewPath = path;
+                                    }
+                                }
+
+                                for (var i = 0; i < Models.Count; i++)
+                                {
+                                    if (resolved.TryGetValue(Models[i].Id, out var path) && Models[i].ThumbnailPath != path)
+                                    {
+                                        Models[i] = Models[i] with { ThumbnailPath = path };
+                                    }
+                                }
+                            };
+
+                            if (Avalonia.Threading.Dispatcher.UIThread?.CheckAccess() == true)
+                            {
+                                updateCards();
+                            }
+                            else
+                            {
+                                Avalonia.Threading.Dispatcher.UIThread?.Post(updateCards, Avalonia.Threading.DispatcherPriority.Background);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                });
+            }
+
             if (_scanCancellation?.IsCancellationRequested == true)
             {
                 CurrentStatusText = "Import cancelled.";
@@ -762,7 +853,7 @@ public class DashboardViewModel : INotifyPropertyChanged
 
     private void QueueThumbnails(IReadOnlyCollection<ModelSummaryDto> models)
     {
-        if (_thumbnails is null)
+        if (_thumbnails is null && _artworkService is null)
         {
             return;
         }
@@ -784,6 +875,27 @@ public class DashboardViewModel : INotifyPropertyChanged
 
                     var path = await EnsureThumbnailPathAsync(model.ContentHash, model.FilePath, token)
                         .ConfigureAwait(false);
+
+                    if (path is null && _artworkService is not null)
+                    {
+                        try
+                        {
+                            var dir = Path.GetDirectoryName(model.FilePath);
+                            if (!string.IsNullOrWhiteSpace(dir))
+                            {
+                                var artResult = await _artworkService.ResolveModelArtworkAsync(
+                                    model.Id,
+                                    dir,
+                                    [model.FilePath],
+                                    token).ConfigureAwait(false);
+                                path = artResult.ResolvedPath;
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
+
                     if (path is null)
                     {
                         continue;
@@ -806,16 +918,24 @@ public class DashboardViewModel : INotifyPropertyChanged
                             }
                         }
 
-                        if (index < 0 || Models[index].ThumbnailPath == path)
+                        if (index >= 0 && Models[index].ThumbnailPath != path)
                         {
-                            return;
+                            var updated = Models[index] with { ThumbnailPath = path };
+                            Models[index] = updated;
+                            if (SelectedModel?.Id == updated.Id)
+                            {
+                                SelectedModel = updated;
+                            }
                         }
 
-                        var updated = Models[index] with { ThumbnailPath = path };
-                        Models[index] = updated;
-                        if (SelectedModel?.Id == updated.Id)
+                        for (var c = 0; c < CatalogModels.Count; c++)
                         {
-                            SelectedModel = updated;
+                            if (CatalogModels[c].Id == model.Id)
+                            {
+                                CatalogModels[c].ThumbnailPath = path;
+                                CatalogModels[c].HoverPreviewPath = path;
+                                break;
+                            }
                         }
                     };
 
@@ -911,7 +1031,7 @@ public class DashboardViewModel : INotifyPropertyChanged
         });
     }
 
-    private void RaiseCommands()
+    protected void RaiseCommands()
     {
         if (ImportCommand is RelayCommand import)
         {
@@ -934,7 +1054,7 @@ public class DashboardViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OnPropertyChanged(string propertyName) =>
+    protected void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     private sealed class EmptyDetailRepository : IModelDetailRepository
@@ -980,9 +1100,13 @@ public class DashboardViewModel : INotifyPropertyChanged
             FeaturedReleases.Clear();
             foreach (var rel in releases)
             {
-                FeaturedReleases.Add(new ReleaseCardViewModel(
+                var card = new ReleaseCardViewModel(
                     rel,
-                    onSelect: r => OnSelectRelease?.Invoke(r),
+                    onSelect: r =>
+                    {
+                        FilterByRelease(r);
+                        OnSelectRelease?.Invoke(r);
+                    },
                     onToggleFavorite: async r =>
                     {
                         if (_releaseDetailRepository is not null)
@@ -990,7 +1114,15 @@ public class DashboardViewModel : INotifyPropertyChanged
                             await _releaseDetailRepository.ToggleReleaseFavoriteAsync(r.ReleaseId, cancellationToken).ConfigureAwait(true);
                             r.IsFavorite = !r.IsFavorite;
                         }
-                    }));
+                    });
+
+                card.RootDirectoryPath = RootPath;
+                if (_artworkService is not null && (string.IsNullOrWhiteSpace(card.BannerPath) || !File.Exists(card.BannerPath)))
+                {
+                    _ = card.ResolveArtworkAsync(_artworkService!, RootPath, null, cancellationToken);
+                }
+
+                FeaturedReleases.Add(card);
             }
         }
         catch
@@ -1001,7 +1133,7 @@ public class DashboardViewModel : INotifyPropertyChanged
 
     private ModelCardViewModel CreateModelCard(ModelSummaryDto item)
     {
-        return new ModelCardViewModel(
+        var card = new ModelCardViewModel(
             item,
             onSelect: card =>
             {
@@ -1013,6 +1145,14 @@ public class DashboardViewModel : INotifyPropertyChanged
                 await ToggleFavoriteAsync(item).ConfigureAwait(true);
                 card.IsFavorite = item.IsFavorite;
             });
+
+        card.RootDirectoryPath = !string.IsNullOrWhiteSpace(item.FilePath) ? Path.GetDirectoryName(item.FilePath) : null;
+        if (_artworkService is not null && (string.IsNullOrWhiteSpace(card.ThumbnailPath) || !File.Exists(card.ThumbnailPath)))
+        {
+            _ = card.ResolveArtworkAsync(_artworkService!, card.RootDirectoryPath, [item.FilePath]);
+        }
+
+        return card;
     }
 
         private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
